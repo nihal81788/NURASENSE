@@ -473,22 +473,6 @@ function initAuthModalListeners() {
   const headerLogin = document.getElementById('headerLogin');
   const loginTriggers = document.querySelectorAll('.js-login');
 
-  // API caller helper
-  async function callAuthApi(endpoint, body) {
-    const res = await fetch(`/api/auth/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(data?.error || `Request failed (${res.status})`);
-    }
-    return data;
-  }
 
   function validateEmail() {
     const val = emailInput?.value.trim() || '';
