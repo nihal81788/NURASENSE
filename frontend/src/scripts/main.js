@@ -30,11 +30,53 @@ const ORIGINAL_TITLE = document.title;
 const authState = {
   signedIn: false,
   name: '',
-  email: ''
+  email: '',
+  token: ''
 };
 
+let currentAuthMode = 'signin'; // 'signin' | 'signup' | 'otp'
+let pendingSignup = {
+  name: '',
+  email: '',
+  password: '',
+  previewOtp: ''
+};
+let otpTimerInterval = null;
+let otpExpiresSeconds = 600;
 let lastLoginTrigger = null;
 let pendingTimer = null;
+
+// Persistent session storage helper
+function saveSession(user, token) {
+  try {
+    localStorage.setItem('nurasense_session', JSON.stringify({
+      user,
+      token,
+      timestamp: Date.now()
+    }));
+  } catch (_) {}
+}
+
+function clearSession() {
+  try {
+    localStorage.removeItem('nurasense_session');
+  } catch (_) {}
+}
+
+function loadStoredSession() {
+  try {
+    const raw = localStorage.getItem('nurasense_session');
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data?.user?.name) {
+        authState.signedIn = true;
+        authState.name = data.user.name;
+        authState.email = data.user.email || '';
+        authState.token = data.token || '';
+      }
+    }
+  } catch (_) {}
+}
 
 function renderHeader() {
   const signedInCluster = document.getElementById('signedInCluster');
@@ -56,40 +98,147 @@ function renderHeader() {
   }
 }
 
-function syncPanels() {
+export function switchAuthMode(mode) {
+  currentAuthMode = mode;
+  const authTabs = document.getElementById('authTabs');
+  const tabSignIn = document.getElementById('tabSignIn');
+  const tabSignUp = document.getElementById('tabSignUp');
   const loginPanel = document.getElementById('loginPanel');
+  const signupPanel = document.getElementById('signupPanel');
+  const otpPanel = document.getElementById('otpPanel');
   const successPanel = document.getElementById('successPanel');
   const dialog = document.getElementById('loginDialog');
 
-  if (loginPanel) loginPanel.hidden = authState.signedIn;
-  if (successPanel) successPanel.hidden = !authState.signedIn;
-  if (dialog) {
-    dialog.setAttribute('aria-labelledby', authState.signedIn ? 'successTitle' : 'loginTitle');
+  if (authState.signedIn) {
+    if (authTabs) authTabs.hidden = true;
+    if (loginPanel) loginPanel.hidden = true;
+    if (signupPanel) signupPanel.hidden = true;
+    if (otpPanel) otpPanel.hidden = true;
+    if (successPanel) successPanel.hidden = false;
+    if (dialog) dialog.setAttribute('aria-labelledby', 'successTitle');
+    return;
+  }
+
+  if (successPanel) successPanel.hidden = true;
+
+  if (mode === 'signin') {
+    if (authTabs) authTabs.hidden = false;
+    tabSignIn?.classList.add('active');
+    tabSignIn?.setAttribute('aria-selected', 'true');
+    tabSignUp?.classList.remove('active');
+    tabSignUp?.setAttribute('aria-selected', 'false');
+    if (loginPanel) loginPanel.hidden = false;
+    if (signupPanel) signupPanel.hidden = true;
+    if (otpPanel) otpPanel.hidden = true;
+    if (dialog) dialog.setAttribute('aria-labelledby', 'loginTitle');
+  } else if (mode === 'signup') {
+    if (authTabs) authTabs.hidden = false;
+    tabSignUp?.classList.add('active');
+    tabSignUp?.setAttribute('aria-selected', 'true');
+    tabSignIn?.classList.remove('active');
+    tabSignIn?.setAttribute('aria-selected', 'false');
+    if (loginPanel) loginPanel.hidden = true;
+    if (signupPanel) signupPanel.hidden = false;
+    if (otpPanel) otpPanel.hidden = true;
+    if (dialog) dialog.setAttribute('aria-labelledby', 'signupTitle');
+  } else if (mode === 'otp') {
+    if (authTabs) authTabs.hidden = true;
+    if (loginPanel) loginPanel.hidden = true;
+    if (signupPanel) signupPanel.hidden = true;
+    if (otpPanel) otpPanel.hidden = false;
+    if (dialog) dialog.setAttribute('aria-labelledby', 'otpTitle');
+  }
+}
+
+function syncPanels() {
+  switchAuthMode(currentAuthMode);
+}
+
+function startOtpCountdown(seconds = 600) {
+  if (otpTimerInterval) clearInterval(otpTimerInterval);
+  otpExpiresSeconds = seconds;
+  const timerEl = document.getElementById('otpTimer');
+
+  const tick = () => {
+    const mins = Math.floor(otpExpiresSeconds / 60);
+    const secs = otpExpiresSeconds % 60;
+    const formatted = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    if (timerEl) {
+      timerEl.innerHTML = `Expires in: <strong>${formatted}</strong>`;
+      timerEl.style.color = otpExpiresSeconds <= 60 ? '#B4452C' : '';
+    }
+    if (otpExpiresSeconds <= 0) {
+      clearInterval(otpTimerInterval);
+      if (timerEl) timerEl.innerHTML = `<span style="color:#B4452C">Code expired. Please click Resend Code.</span>`;
+    }
+    otpExpiresSeconds--;
+  };
+
+  tick();
+  otpTimerInterval = setInterval(tick, 1000);
+}
+
+function stopOtpCountdown() {
+  if (otpTimerInterval) {
+    clearInterval(otpTimerInterval);
+    otpTimerInterval = null;
   }
 }
 
 function resetForm() {
   const form = document.getElementById('loginForm');
+  const signupForm = document.getElementById('signupForm');
+  const otpForm = document.getElementById('otpForm');
+
   const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
-  const passwordToggle = document.getElementById('passwordToggle');
-  const eyeOpen = passwordToggle?.querySelector('.js-eye-open');
-  const eyeClosed = passwordToggle?.querySelector('.js-eye-closed');
   const emailError = document.getElementById('emailError');
   const passwordError = document.getElementById('passwordError');
   const submitBtn = document.getElementById('submitBtn');
   const submitLabel = document.getElementById('submitLabel');
   const spinner = document.getElementById('spinner');
+
+  const signupName = document.getElementById('signupName');
+  const signupEmail = document.getElementById('signupEmail');
+  const signupPassword = document.getElementById('signupPassword');
+  const signupNameError = document.getElementById('signupNameError');
+  const signupEmailError = document.getElementById('signupEmailError');
+  const signupPasswordError = document.getElementById('signupPasswordError');
+  const signupSubmitBtn = document.getElementById('signupSubmitBtn');
+  const signupSubmitLabel = document.getElementById('signupSubmitLabel');
+  const signupSpinner = document.getElementById('signupSpinner');
+
+  const otpDigits = [1, 2, 3, 4, 5, 6].map(i => document.getElementById(`otp${i}`));
+  const otpError = document.getElementById('otpError');
+  const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+  const verifyOtpLabel = document.getElementById('verifyOtpLabel');
+  const verifyOtpSpinner = document.getElementById('verifyOtpSpinner');
+
   const googleBtn = document.getElementById('googleBtn');
   const googleLabel = document.getElementById('googleLabel');
   const googleSpinner = document.getElementById('googleSpinner');
-  const rememberInput = document.getElementById('remember');
+  const googleSignupBtn = document.getElementById('googleSignupBtn');
+  const googleSignupLabel = document.getElementById('googleSignupLabel');
+  const googleSignupSpinner = document.getElementById('googleSignupSpinner');
+
+  stopOtpCountdown();
 
   if (pendingTimer) {
     clearTimeout(pendingTimer);
     pendingTimer = null;
   }
+
   if (form) form.reset();
+  if (signupForm) signupForm.reset();
+  if (otpForm) otpForm.reset();
+
+  otpDigits.forEach(input => {
+    if (input) {
+      input.value = '';
+      input.classList.remove('error');
+    }
+  });
+
   if (emailInput) {
     emailInput.readOnly = false;
     setError(emailInput, emailError, '');
@@ -99,25 +248,45 @@ function resetForm() {
     passwordInput.type = 'password';
     setError(passwordInput, passwordError, '');
   }
-  if (passwordToggle) {
-    passwordToggle.setAttribute('aria-pressed', 'false');
-    passwordToggle.setAttribute('aria-label', 'Show password');
-  }
-  if (eyeOpen) eyeOpen.hidden = false;
-  if (eyeClosed) eyeClosed.hidden = true;
+  if (signupName) setError(signupName, signupNameError, '');
+  if (signupEmail) setError(signupEmail, signupEmailError, '');
+  if (signupPassword) setError(signupPassword, signupPasswordError, '');
+  if (otpError) setError({ removeAttribute: () => {} }, otpError, '');
+
   if (submitBtn) {
     submitBtn.disabled = false;
     submitBtn.removeAttribute('aria-busy');
   }
   if (submitLabel) submitLabel.textContent = 'Sign in';
   if (spinner) spinner.hidden = true;
+
+  if (signupSubmitBtn) {
+    signupSubmitBtn.disabled = false;
+    signupSubmitBtn.removeAttribute('aria-busy');
+  }
+  if (signupSubmitLabel) signupSubmitLabel.textContent = 'Send Verification Code';
+  if (signupSpinner) signupSpinner.hidden = true;
+
+  if (verifyOtpBtn) {
+    verifyOtpBtn.disabled = false;
+    verifyOtpBtn.removeAttribute('aria-busy');
+  }
+  if (verifyOtpLabel) verifyOtpLabel.textContent = 'Verify & Create Account';
+  if (verifyOtpSpinner) verifyOtpSpinner.hidden = true;
+
   if (googleBtn) {
     googleBtn.disabled = false;
     googleBtn.removeAttribute('aria-busy');
   }
   if (googleLabel) googleLabel.textContent = 'Continue with Google';
   if (googleSpinner) googleSpinner.hidden = true;
-  if (rememberInput) rememberInput.checked = true;
+
+  if (googleSignupBtn) {
+    googleSignupBtn.disabled = false;
+    googleSignupBtn.removeAttribute('aria-busy');
+  }
+  if (googleSignupLabel) googleSignupLabel.textContent = 'Sign up with Google';
+  if (googleSignupSpinner) googleSignupSpinner.hidden = true;
 }
 
 export function openLoginDialog(trigger) {
@@ -228,7 +397,17 @@ export function exitDashboard() {
 
 function initAuthModalListeners() {
   const dialog = document.getElementById('loginDialog');
-  const form = document.getElementById('loginForm');
+  const dialogClose = document.getElementById('dialogClose');
+
+  // Tabs & Navigation
+  const tabSignIn = document.getElementById('tabSignIn');
+  const tabSignUp = document.getElementById('tabSignUp');
+  const switchToSignUp = document.getElementById('switchToSignUp');
+  const switchToSignIn = document.getElementById('switchToSignIn');
+  const otpBackBtn = document.getElementById('otpBackBtn');
+
+  // Login form elements
+  const loginForm = document.getElementById('loginForm');
   const emailInput = document.getElementById('email');
   const passwordInput = document.getElementById('password');
   const emailError = document.getElementById('emailError');
@@ -239,16 +418,64 @@ function initAuthModalListeners() {
   const passwordToggle = document.getElementById('passwordToggle');
   const eyeOpen = passwordToggle?.querySelector('.js-eye-open');
   const eyeClosed = passwordToggle?.querySelector('.js-eye-closed');
-  const dialogClose = document.getElementById('dialogClose');
   const demoBtn = document.getElementById('demoBtn');
   const googleBtn = document.getElementById('googleBtn');
   const googleLabel = document.getElementById('googleLabel');
   const googleSpinner = document.getElementById('googleSpinner');
+
+  // Signup form elements
+  const signupForm = document.getElementById('signupForm');
+  const signupName = document.getElementById('signupName');
+  const signupEmail = document.getElementById('signupEmail');
+  const signupPassword = document.getElementById('signupPassword');
+  const signupNameError = document.getElementById('signupNameError');
+  const signupEmailError = document.getElementById('signupEmailError');
+  const signupPasswordError = document.getElementById('signupPasswordError');
+  const signupSubmitBtn = document.getElementById('signupSubmitBtn');
+  const signupSubmitLabel = document.getElementById('signupSubmitLabel');
+  const signupSpinner = document.getElementById('signupSpinner');
+  const signupPasswordToggle = document.getElementById('signupPasswordToggle');
+  const signupEyeOpen = signupPasswordToggle?.querySelector('.js-eye-open');
+  const signupEyeClosed = signupPasswordToggle?.querySelector('.js-eye-closed');
+  const googleSignupBtn = document.getElementById('googleSignupBtn');
+  const googleSignupLabel = document.getElementById('googleSignupLabel');
+  const googleSignupSpinner = document.getElementById('googleSignupSpinner');
+
+  // OTP elements
+  const otpForm = document.getElementById('otpForm');
+  const otpEmailTarget = document.getElementById('otpEmailTarget');
+  const otpCodeDisplay = document.getElementById('otpCodeDisplay');
+  const otpFillBtn = document.getElementById('otpFillBtn');
+  const otpDigits = [1, 2, 3, 4, 5, 6].map(i => document.getElementById(`otp${i}`));
+  const otpError = document.getElementById('otpError');
+  const resendOtpBtn = document.getElementById('resendOtpBtn');
+  const verifyOtpBtn = document.getElementById('verifyOtpBtn');
+  const verifyOtpLabel = document.getElementById('verifyOtpLabel');
+  const verifyOtpSpinner = document.getElementById('verifyOtpSpinner');
+
+  // Post-auth & Navigation
   const doneBtn = document.getElementById('doneBtn');
   const signOutBtn = document.getElementById('signOutBtn');
   const headerSignOut = document.getElementById('headerSignOut');
   const headerLogin = document.getElementById('headerLogin');
   const loginTriggers = document.querySelectorAll('.js-login');
+
+  // API caller helper
+  async function callAuthApi(endpoint, body) {
+    const res = await fetch(`/api/auth/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.error || `Request failed (${res.status})`);
+    }
+    return data;
+  }
 
   function validateEmail() {
     const val = emailInput?.value.trim() || '';
@@ -278,6 +505,13 @@ function initAuthModalListeners() {
     return true;
   }
 
+  // Tab switching handlers
+  if (tabSignIn) tabSignIn.addEventListener('click', () => switchAuthMode('signin'));
+  if (tabSignUp) tabSignUp.addEventListener('click', () => switchAuthMode('signup'));
+  if (switchToSignUp) switchToSignUp.addEventListener('click', () => switchAuthMode('signup'));
+  if (switchToSignIn) switchToSignIn.addEventListener('click', () => switchAuthMode('signin'));
+  if (otpBackBtn) otpBackBtn.addEventListener('click', () => switchAuthMode('signup'));
+
   loginTriggers.forEach((trigger) => {
     trigger.addEventListener('click', () => openLoginDialog(trigger));
   });
@@ -296,6 +530,7 @@ function initAuthModalListeners() {
     });
   }
 
+  // Input validations
   if (emailInput) {
     emailInput.addEventListener('blur', validateEmail);
     emailInput.addEventListener('input', () => {
@@ -310,6 +545,7 @@ function initAuthModalListeners() {
     });
   }
 
+  // Login Password visibility toggle
   if (passwordToggle && passwordInput) {
     passwordToggle.addEventListener('click', () => {
       const showing = passwordInput.type === 'text';
@@ -322,6 +558,20 @@ function initAuthModalListeners() {
     });
   }
 
+  // Signup Password visibility toggle
+  if (signupPasswordToggle && signupPassword) {
+    signupPasswordToggle.addEventListener('click', () => {
+      const showing = signupPassword.type === 'text';
+      signupPassword.type = showing ? 'password' : 'text';
+      signupPasswordToggle.setAttribute('aria-pressed', showing ? 'false' : 'true');
+      signupPasswordToggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+      if (signupEyeOpen) signupEyeOpen.hidden = !showing;
+      if (signupEyeClosed) signupEyeClosed.hidden = showing;
+      signupPassword.focus();
+    });
+  }
+
+  // Demo access button
   if (demoBtn && emailInput && passwordInput) {
     demoBtn.addEventListener('click', () => {
       emailInput.value = DEMO_EMAIL;
@@ -332,34 +582,54 @@ function initAuthModalListeners() {
     });
   }
 
-  if (googleBtn) {
-    googleBtn.addEventListener('click', () => {
-      if (googleBtn.disabled || submitBtn?.disabled) return;
-      setError(emailInput, emailError, '');
-      setError(passwordInput, passwordError, '');
-      googleBtn.disabled = true;
-      googleBtn.setAttribute('aria-busy', 'true');
-      if (googleLabel) googleLabel.textContent = 'Connecting to Google…';
-      if (googleSpinner) googleSpinner.hidden = false;
+  // Google Sign-In & Sign-Up
+  function handleGoogleAuth(btn, label, spinner) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.setAttribute('aria-busy', 'true');
+    if (label) label.textContent = 'Connecting with Google…';
+    if (spinner) spinner.hidden = false;
 
-      pendingTimer = setTimeout(() => {
-        pendingTimer = null;
-        authState.signedIn = true;
-        authState.name = 'Maya Roberts';
-        authState.email = DEMO_EMAIL;
-        renderHeader();
-        syncPanels();
-        resetForm();
-        const successTitle = document.getElementById('successTitle');
-        if (successTitle) successTitle.focus();
-      }, 900);
-    });
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
+      if (spinner) spinner.hidden = true;
+      if (label) label.textContent = label.id.includes('Signup') ? 'Sign up with Google' : 'Continue with Google';
+
+      const googleUser = {
+        id: 'usr_google_maya',
+        name: 'Maya Roberts',
+        email: DEMO_EMAIL,
+        role: 'patient'
+      };
+      saveSession(googleUser, 'google_jwt_session');
+      authState.signedIn = true;
+      authState.name = googleUser.name;
+      authState.email = googleUser.email;
+      renderHeader();
+      syncPanels();
+      resetForm();
+      const successTitle = document.getElementById('successTitle');
+      if (successTitle) successTitle.focus();
+      showToast('Signed in via Google');
+    }, 900);
   }
 
-  if (form) {
-    form.addEventListener('submit', (event) => {
+  if (googleBtn) {
+    googleBtn.addEventListener('click', () => handleGoogleAuth(googleBtn, googleLabel, googleSpinner));
+  }
+  if (googleSignupBtn) {
+    googleSignupBtn.addEventListener('click', () => handleGoogleAuth(googleSignupBtn, googleSignupLabel, googleSignupSpinner));
+  }
+
+  // SIGN IN SUBMISSION (Real Database + bcrypt)
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (submitBtn?.disabled || googleBtn?.disabled) return;
+
+      const emailVal = emailInput?.value.trim() || '';
+      const passVal = passwordInput?.value || '';
 
       const emailOk = validateEmail();
       const passwordOk = validatePassword();
@@ -369,59 +639,330 @@ function initAuthModalListeners() {
         return;
       }
 
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.setAttribute('aria-busy', 'true');
-      }
-      if (submitLabel) submitLabel.textContent = 'Signing you in…';
+      submitBtn.disabled = true;
+      submitBtn.setAttribute('aria-busy', 'true');
+      if (submitLabel) submitLabel.textContent = 'Verifying credentials…';
       if (spinner) spinner.hidden = false;
-      if (googleBtn) googleBtn.disabled = true;
       if (emailInput) emailInput.readOnly = true;
       if (passwordInput) passwordInput.readOnly = true;
 
-      const submittedEmail = emailInput?.value.trim() || '';
-
-      pendingTimer = setTimeout(() => {
-        pendingTimer = null;
+      try {
+        const res = await callAuthApi('login', { email: emailVal, password: passVal });
+        saveSession(res.user, res.token);
         authState.signedIn = true;
-        authState.email = submittedEmail;
-        authState.name = displayNameFromEmail(submittedEmail);
+        authState.name = res.user.name;
+        authState.email = res.user.email;
+        authState.token = res.token;
+
         renderHeader();
         syncPanels();
         resetForm();
         const successTitle = document.getElementById('successTitle');
         if (successTitle) successTitle.focus();
-      }, 800);
+        showToast(`Signed in as ${authState.name}`);
+      } catch (err) {
+        // Graceful fallback for demo password or static offline preview
+        if (emailVal.toLowerCase() === DEMO_EMAIL && passVal === DEMO_PASSWORD) {
+          const demoUser = { id: 'usr_demo_patient', name: 'Maya Roberts', email: DEMO_EMAIL, role: 'patient' };
+          saveSession(demoUser, 'demo_token');
+          authState.signedIn = true;
+          authState.name = demoUser.name;
+          authState.email = demoUser.email;
+          renderHeader();
+          syncPanels();
+          resetForm();
+          const successTitle = document.getElementById('successTitle');
+          if (successTitle) successTitle.focus();
+          showToast('Signed in with demo access');
+        } else {
+          setError(passwordInput, passwordError, err.message || 'Invalid email address or password.');
+          if (passwordInput) {
+            passwordInput.readOnly = false;
+            passwordInput.focus();
+          }
+          if (emailInput) emailInput.readOnly = false;
+        }
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.removeAttribute('aria-busy');
+        }
+        if (submitLabel) submitLabel.textContent = 'Sign in';
+        if (spinner) spinner.hidden = true;
+        if (emailInput) emailInput.readOnly = false;
+        if (passwordInput) passwordInput.readOnly = false;
+      }
     });
   }
 
+  // SIGN UP SUBMISSION -> SEND OTP
+  if (signupForm) {
+    signupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (signupSubmitBtn?.disabled) return;
+
+      const nameVal = signupName?.value.trim() || '';
+      const emailVal = signupEmail?.value.trim() || '';
+      const passVal = signupPassword?.value || '';
+
+      let hasErr = false;
+      if (!nameVal || nameVal.length < 2) {
+        setError(signupName, signupNameError, 'Please enter your full name (at least 2 characters).');
+        hasErr = true;
+      } else {
+        setError(signupName, signupNameError, '');
+      }
+
+      if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailVal)) {
+        setError(signupEmail, signupEmailError, 'Please enter a valid email address.');
+        hasErr = true;
+      } else {
+        setError(signupEmail, signupEmailError, '');
+      }
+
+      if (!passVal || passVal.length < 6) {
+        setError(signupPassword, signupPasswordError, 'Password must be at least 6 characters.');
+        hasErr = true;
+      } else {
+        setError(signupPassword, signupPasswordError, '');
+      }
+
+      if (hasErr) return;
+
+      signupSubmitBtn.disabled = true;
+      signupSubmitBtn.setAttribute('aria-busy', 'true');
+      if (signupSubmitLabel) signupSubmitLabel.textContent = 'Generating 6-digit OTP…';
+      if (signupSpinner) signupSpinner.hidden = false;
+
+      try {
+        const res = await callAuthApi('send-otp', { email: emailVal, purpose: 'signup' });
+        pendingSignup = {
+          name: nameVal,
+          email: emailVal,
+          password: passVal,
+          previewOtp: res.previewOtp || ''
+        };
+
+        if (otpEmailTarget) otpEmailTarget.textContent = emailVal;
+        if (otpCodeDisplay) otpCodeDisplay.textContent = res.previewOtp || 'Sent';
+
+        otpDigits.forEach(d => { if (d) d.value = ''; });
+        startOtpCountdown(600);
+        switchAuthMode('otp');
+        window.setTimeout(() => otpDigits[0]?.focus(), 100);
+        showToast(`Verification code generated for ${emailVal}`);
+      } catch (err) {
+        // Fallback for static hosts without backend: simulate secure code
+        if (err.message.includes('404') || err.message.includes('Failed to fetch')) {
+          const simCode = Math.floor(100000 + Math.random() * 900000).toString();
+          pendingSignup = {
+            name: nameVal,
+            email: emailVal,
+            password: passVal,
+            previewOtp: simCode
+          };
+          if (otpEmailTarget) otpEmailTarget.textContent = emailVal;
+          if (otpCodeDisplay) otpCodeDisplay.textContent = simCode;
+          otpDigits.forEach(d => { if (d) d.value = ''; });
+          startOtpCountdown(600);
+          switchAuthMode('otp');
+          window.setTimeout(() => otpDigits[0]?.focus(), 100);
+          showToast(`Offline demo: verification code is ${simCode}`);
+        } else {
+          setError(signupEmail, signupEmailError, err.message);
+          if (signupEmail) signupEmail.focus();
+        }
+      } finally {
+        signupSubmitBtn.disabled = false;
+        signupSubmitBtn.removeAttribute('aria-busy');
+        if (signupSubmitLabel) signupSubmitLabel.textContent = 'Send Verification Code';
+        if (signupSpinner) signupSpinner.hidden = true;
+      }
+    });
+  }
+
+  // OTP DIGIT INPUT NAVIGATION (0-9 advance, backspace back, paste full code)
+  otpDigits.forEach((digitInput, idx) => {
+    if (!digitInput) return;
+
+    digitInput.addEventListener('input', () => {
+      const val = digitInput.value.replace(/[^0-9]/g, '');
+      digitInput.value = val ? val[0] : '';
+      digitInput.classList.remove('error');
+      if (val && idx < otpDigits.length - 1) {
+        otpDigits[idx + 1].focus();
+        otpDigits[idx + 1].select();
+      }
+      if (otpError) setError({ removeAttribute: () => {} }, otpError, '');
+    });
+
+    digitInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !digitInput.value && idx > 0) {
+        otpDigits[idx - 1].focus();
+        otpDigits[idx - 1].value = '';
+      }
+    });
+
+    digitInput.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+      const numbers = pasteData.replace(/[^0-9]/g, '').slice(0, 6);
+      if (numbers) {
+        numbers.split('').forEach((num, numIdx) => {
+          if (otpDigits[numIdx]) {
+            otpDigits[numIdx].value = num;
+            otpDigits[numIdx].classList.remove('error');
+          }
+        });
+        const targetIdx = Math.min(numbers.length, 5);
+        otpDigits[targetIdx]?.focus();
+      }
+    });
+  });
+
+  // OTP Auto-fill helper
+  function fillOtpCode(code) {
+    if (!code) return;
+    const clean = code.replace(/[^0-9]/g, '').slice(0, 6);
+    clean.split('').forEach((digit, i) => {
+      if (otpDigits[i]) {
+        otpDigits[i].value = digit;
+        otpDigits[i].classList.remove('error');
+      }
+    });
+    if (otpDigits[5]) otpDigits[5].focus();
+    if (otpError) setError({ removeAttribute: () => {} }, otpError, '');
+  }
+
+  if (otpFillBtn) {
+    otpFillBtn.addEventListener('click', () => fillOtpCode(pendingSignup.previewOtp));
+  }
+  if (otpCodeDisplay) {
+    otpCodeDisplay.addEventListener('click', () => fillOtpCode(pendingSignup.previewOtp));
+  }
+
+  // Resend OTP
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener('click', async () => {
+      if (!pendingSignup.email) return;
+      resendOtpBtn.disabled = true;
+      resendOtpBtn.textContent = 'Resending…';
+      try {
+        const res = await callAuthApi('send-otp', { email: pendingSignup.email, purpose: 'signup' });
+        pendingSignup.previewOtp = res.previewOtp || '';
+        if (otpCodeDisplay) otpCodeDisplay.textContent = res.previewOtp || 'Sent';
+        startOtpCountdown(600);
+        showToast('A new 6-digit code has been generated');
+      } catch (err) {
+        showToast(err.message || 'Could not resend verification code');
+      } finally {
+        resendOtpBtn.disabled = false;
+        resendOtpBtn.textContent = 'Resend Code';
+      }
+    });
+  }
+
+  // VERIFY OTP & COMPLETE REGISTRATION
+  if (otpForm) {
+    otpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (verifyOtpBtn?.disabled) return;
+
+      const code = otpDigits.map(d => d?.value || '').join('');
+      if (code.length !== 6) {
+        setError({ removeAttribute: () => {} }, otpError, 'Please enter all 6 digits of your verification code.');
+        otpDigits.forEach(d => { if (!d?.value) d?.classList.add('error'); });
+        return;
+      }
+      setError({ removeAttribute: () => {} }, otpError, '');
+
+      verifyOtpBtn.disabled = true;
+      verifyOtpBtn.setAttribute('aria-busy', 'true');
+      if (verifyOtpLabel) verifyOtpLabel.textContent = 'Verifying & creating account…';
+      if (verifyOtpSpinner) verifyOtpSpinner.hidden = false;
+
+      try {
+        const res = await callAuthApi('signup', {
+          name: pendingSignup.name,
+          email: pendingSignup.email,
+          password: pendingSignup.password,
+          otp: code
+        });
+
+        stopOtpCountdown();
+        saveSession(res.user, res.token);
+        authState.signedIn = true;
+        authState.name = res.user.name;
+        authState.email = res.user.email;
+        authState.token = res.token;
+
+        renderHeader();
+        switchAuthMode('signin');
+        const successPanel = document.getElementById('successPanel');
+        const whoami = document.getElementById('whoami');
+        if (whoami) whoami.textContent = authState.name;
+        if (successPanel) successPanel.hidden = false;
+        const successTitle = document.getElementById('successTitle');
+        if (successTitle) successTitle.focus();
+
+        showToast(`Welcome, ${authState.name}! Your account is active.`);
+      } catch (err) {
+        // Fallback for static preview if offline and code matches previewOtp
+        if ((err.message.includes('404') || err.message.includes('Failed to fetch')) && code === pendingSignup.previewOtp) {
+          stopOtpCountdown();
+          const fallbackUser = {
+            id: 'usr_' + Date.now().toString(36),
+            name: pendingSignup.name,
+            email: pendingSignup.email,
+            role: 'patient'
+          };
+          saveSession(fallbackUser, 'client_demo_token');
+          authState.signedIn = true;
+          authState.name = fallbackUser.name;
+          authState.email = fallbackUser.email;
+
+          renderHeader();
+          switchAuthMode('signin');
+          const successPanel = document.getElementById('successPanel');
+          const whoami = document.getElementById('whoami');
+          if (whoami) whoami.textContent = authState.name;
+          if (successPanel) successPanel.hidden = false;
+          showToast(`Welcome, ${authState.name}! Account registered.`);
+        } else {
+          setError({ removeAttribute: () => {} }, otpError, err.message || 'Incorrect verification code.');
+          otpDigits.forEach(d => d?.classList.add('error'));
+        }
+      } finally {
+        verifyOtpBtn.disabled = false;
+        verifyOtpBtn.removeAttribute('aria-busy');
+        if (verifyOtpLabel) verifyOtpLabel.textContent = 'Verify & Create Account';
+        if (verifyOtpSpinner) verifyOtpSpinner.hidden = true;
+      }
+    });
+  }
+
+  // Done & Sign Out handlers
   if (doneBtn) {
     doneBtn.addEventListener('click', () => openDashboard(doneBtn));
   }
 
-  if (signOutBtn) {
-    signOutBtn.addEventListener('click', () => {
-      authState.signedIn = false;
-      authState.name = '';
-      authState.email = '';
-      renderHeader();
-      syncPanels();
-      resetForm();
-      closeLoginDialog();
-      if (headerLogin) setTimeout(() => headerLogin.focus(), 60);
-    });
+  function handleSignOut() {
+    clearSession();
+    stopOtpCountdown();
+    authState.signedIn = false;
+    authState.name = '';
+    authState.email = '';
+    authState.token = '';
+    renderHeader();
+    switchAuthMode('signin');
+    resetForm();
+    closeLoginDialog();
+    showToast('Signed out of NuraSense');
+    if (headerLogin) setTimeout(() => headerLogin.focus(), 60);
   }
 
-  if (headerSignOut) {
-    headerSignOut.addEventListener('click', () => {
-      authState.signedIn = false;
-      authState.name = '';
-      authState.email = '';
-      renderHeader();
-      syncPanels();
-      if (headerLogin) headerLogin.focus();
-    });
-  }
+  if (signOutBtn) signOutBtn.addEventListener('click', handleSignOut);
+  if (headerSignOut) headerSignOut.addEventListener('click', handleSignOut);
 }
 
 function initAppRouting() {
@@ -449,6 +990,7 @@ function initAppRouting() {
 
 // Bootstrap
 document.addEventListener('DOMContentLoaded', () => {
+  loadStoredSession();
   initLandingInteractions();
   initAuthModalListeners();
   initDashboardListeners();

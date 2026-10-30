@@ -42,3 +42,9 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Databases
+*.db
+*.db-wal
+*.db-shm
+nurasense.db
+

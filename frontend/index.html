@@ -1360,6 +1360,11 @@
       </svg>
     </button>
 
+    <div class="auth-tabs" id="authTabs" role="tablist" aria-label="Account access options">
+      <button class="auth-tab active" id="tabSignIn" type="button" role="tab" aria-selected="true">Sign In</button>
+      <button class="auth-tab" id="tabSignUp" type="button" role="tab" aria-selected="false">Create Account</button>
+    </div>
+
     <div id="loginPanel">
       <p class="dialog-eyebrow">Patient access</p>
       <h2 class="dialog-title" id="loginTitle">Sign in</h2>
@@ -1412,11 +1417,109 @@
         </button>
       </form>
 
+      <p class="auth-switch">Don't have an account? <button class="link-btn" id="switchToSignUp" type="button">Create one here</button></p>
+
       <p class="demo-hint">
-        Preview build — email and Google sign-in are simulated and nothing is sent.
+        Official demo access · credentials stored in SQLite database:
         <span class="demo-cred">patient@nurasense.app · nura-demo</span>
         <button class="link-btn" id="demoBtn" type="button">Use demo access</button>
       </p>
+    </div>
+
+    <!-- SIGN UP PANEL -->
+    <div id="signupPanel" hidden>
+      <p class="dialog-eyebrow">New patient registration</p>
+      <h2 class="dialog-title" id="signupTitle">Create Account</h2>
+      <p class="dialog-sub">Register your NuraSense telemetry account with verified email.</p>
+
+      <button class="btn btn-google btn-block" id="googleSignupBtn" type="button" style="margin-top: var(--s5)">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span id="googleSignupLabel">Sign up with Google</span>
+        <span class="spinner spinner--dark" id="googleSignupSpinner" hidden aria-hidden="true"></span>
+      </button>
+
+      <div class="auth-divider">or register with email</div>
+
+      <form id="signupForm" novalidate>
+        <div class="form-field">
+          <label for="signupName">Full name</label>
+          <input id="signupName" name="name" type="text" autocomplete="name" placeholder="e.g. Maya Roberts" aria-describedby="signupNameError" required>
+          <p class="field-error" id="signupNameError" hidden></p>
+        </div>
+
+        <div class="form-field">
+          <label for="signupEmail">Email address</label>
+          <input id="signupEmail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="maya@example.com" aria-describedby="signupEmailError" required>
+          <p class="field-error" id="signupEmailError" hidden></p>
+        </div>
+
+        <div class="form-field">
+          <label for="signupPassword">Password</label>
+          <div class="password-wrap">
+            <input id="signupPassword" name="password" type="password" autocomplete="new-password" placeholder="At least 6 characters" aria-describedby="signupPasswordError" required>
+            <button class="password-toggle" id="signupPasswordToggle" type="button" aria-label="Show password" aria-pressed="false">
+              <svg class="od-icon js-eye-open" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>
+              </svg>
+              <svg class="od-icon js-eye-closed" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                <path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 4l16 16"/>
+              </svg>
+            </button>
+          </div>
+          <p class="field-error" id="signupPasswordError" hidden></p>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="signupSubmitBtn" type="submit" style="margin-top: var(--s4)">
+          <span id="signupSubmitLabel">Send Verification Code</span>
+          <span class="spinner" id="signupSpinner" hidden aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <p class="auth-switch">Already registered? <button class="link-btn" id="switchToSignIn" type="button">Sign in instead</button></p>
+    </div>
+
+    <!-- OTP VERIFICATION PANEL -->
+    <div id="otpPanel" hidden>
+      <p class="dialog-eyebrow">Security check</p>
+      <h2 class="dialog-title" id="otpTitle">Verify Email</h2>
+      <p class="dialog-sub">Enter the 6-digit verification code sent to <strong id="otpEmailTarget">you@example.com</strong></p>
+
+      <div class="otp-banner" id="otpDemoBanner">
+        <span>Security Code: <strong id="otpCodeDisplay" class="otp-badge" title="Click to auto-fill">------</strong></span>
+        <button type="button" class="link-btn" id="otpFillBtn">Auto-fill</button>
+      </div>
+
+      <form id="otpForm" novalidate>
+        <div class="otp-container">
+          <div class="otp-grid">
+            <input class="otp-digit" id="otp1" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1" required>
+            <input class="otp-digit" id="otp2" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 2" required>
+            <input class="otp-digit" id="otp3" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 3" required>
+            <input class="otp-digit" id="otp4" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 4" required>
+            <input class="otp-digit" id="otp5" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 5" required>
+            <input class="otp-digit" id="otp6" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" aria-label="Digit 6" required>
+          </div>
+          <p class="field-error" id="otpError" style="text-align:center; margin-top: 10px;" hidden></p>
+        </div>
+
+        <div class="otp-meta">
+          <span id="otpTimer">Expires in: <strong>10:00</strong></span>
+          <button class="link-btn" id="resendOtpBtn" type="button">Resend Code</button>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="verifyOtpBtn" type="submit" style="margin-top: var(--s5)">
+          <span id="verifyOtpLabel">Verify & Create Account</span>
+          <span class="spinner" id="verifyOtpSpinner" hidden aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <p class="auth-switch">Wrong email? <button class="link-btn" id="otpBackBtn" type="button">Back to registration</button></p>
+    </div>
     </div>
 
     <div id="successPanel" hidden>

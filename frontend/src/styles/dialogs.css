@@ -147,3 +147,105 @@ dialog[open]::backdrop { animation: backdrop-in 200ms linear both; }
 }
 #successPanel .dialog-title { padding-right: 0; }
 .success-actions { margin-top: var(--s5); display: grid; gap: var(--s3); justify-items: center; }
+
+/* ---------- Auth Tabs & OTP Verification ---------- */
+.auth-tabs {
+  display: flex;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: var(--s4);
+}
+.auth-tab {
+  flex: 1;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 160ms var(--ease-out);
+}
+.auth-tab:hover {
+  color: var(--ink);
+}
+.auth-tab.active {
+  background: var(--surface);
+  color: var(--petrol-deep);
+  box-shadow: 0 2px 6px rgba(4, 26, 28, 0.08);
+}
+
+.otp-container {
+  margin: var(--s4) 0;
+}
+.otp-grid {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.otp-digit {
+  width: 48px;
+  height: 56px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface-2);
+  border: 1.5px solid #CFDCDB;
+  border-radius: 10px;
+  transition: all 160ms var(--ease-out);
+}
+.otp-digit:focus {
+  outline: none;
+  border-color: var(--petrol);
+  box-shadow: 0 0 0 3px rgba(11, 93, 99, 0.16);
+  background: #fff;
+}
+.otp-digit.error {
+  border-color: #B4452C;
+  background: rgba(180, 69, 44, 0.04);
+}
+
+.otp-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(11, 93, 99, 0.08);
+  border: 1px solid rgba(11, 93, 99, 0.2);
+  border-radius: 8px;
+  margin: var(--s3) 0 var(--s4);
+  font-size: 12.5px;
+  color: var(--petrol-deep);
+}
+.otp-badge {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  background: #fff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(11, 93, 99, 0.25);
+  cursor: pointer;
+}
+.otp-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.auth-switch {
+  margin-top: var(--s4);
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
