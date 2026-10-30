@@ -4,6 +4,7 @@
  */
 
 import '../styles/main.css';
+import { supabase } from './supabase.js';
 import { initLandingInteractions } from './landing.js';
 import {
   initDashboardListeners,
@@ -63,8 +64,19 @@ function clearSession() {
   } catch (_) {}
 }
 
-function loadStoredSession() {
+async function loadStoredSession() {
   try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.user) {
+      const u = data.session.user;
+      authState.signedIn = true;
+      authState.name = u.user_metadata?.name || u.user_metadata?.full_name || displayNameFromEmail(u.email);
+      authState.email = u.email || '';
+      authState.token = data.session.access_token || '';
+      renderHeader();
+      return;
+    }
+
     const raw = localStorage.getItem('nurasense_session');
     if (raw) {
       const data = JSON.parse(raw);
@@ -73,6 +85,7 @@ function loadStoredSession() {
         authState.name = data.user.name;
         authState.email = data.user.email || '';
         authState.token = data.token || '';
+        renderHeader();
       }
     }
   } catch (_) {}
@@ -622,7 +635,7 @@ function initAuthModalListeners() {
     googleSignupBtn.addEventListener('click', () => handleGoogleAuth(googleSignupBtn, googleSignupLabel, googleSignupSpinner));
   }
 
-  // SIGN IN SUBMISSION (Real Database + bcrypt)
+  // SIGN IN SUBMISSION (Supabase Cloud PostgreSQL + Tokenization)
   if (loginForm) {
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -641,18 +654,46 @@ function initAuthModalListeners() {
 
       submitBtn.disabled = true;
       submitBtn.setAttribute('aria-busy', 'true');
-      if (submitLabel) submitLabel.textContent = 'Verifying credentials…';
+      if (submitLabel) submitLabel.textContent = 'Verifying with Supabase…';
       if (spinner) spinner.hidden = false;
       if (emailInput) emailInput.readOnly = true;
       if (passwordInput) passwordInput.readOnly = true;
 
       try {
-        const res = await callAuthApi('login', { email: emailVal, password: passVal });
-        saveSession(res.user, res.token);
+        // Authenticate directly with Supabase Cloud
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: emailVal,
+          password: passVal
+        });
+
+        if (error) {
+          // Fallback for official demo credentials
+          if (emailVal.toLowerCase() === DEMO_EMAIL && passVal === DEMO_PASSWORD) {
+            const demoUser = { id: 'usr_demo_patient', name: 'Maya Roberts', email: DEMO_EMAIL, role: 'patient' };
+            saveSession(demoUser, 'demo_token');
+            authState.signedIn = true;
+            authState.name = demoUser.name;
+            authState.email = demoUser.email;
+            renderHeader();
+            syncPanels();
+            resetForm();
+            const successTitle = document.getElementById('successTitle');
+            if (successTitle) successTitle.focus();
+            showToast('Signed in with demo access');
+            return;
+          }
+          throw error;
+        }
+
+        const u = data.user;
+        const userName = u.user_metadata?.name || u.user_metadata?.full_name || displayNameFromEmail(u.email);
+        const token = data.session?.access_token || '';
+
+        saveSession({ id: u.id, name: userName, email: u.email }, token);
         authState.signedIn = true;
-        authState.name = res.user.name;
-        authState.email = res.user.email;
-        authState.token = res.token;
+        authState.name = userName;
+        authState.email = u.email;
+        authState.token = token;
 
         renderHeader();
         syncPanels();
@@ -661,27 +702,12 @@ function initAuthModalListeners() {
         if (successTitle) successTitle.focus();
         showToast(`Signed in as ${authState.name}`);
       } catch (err) {
-        // Graceful fallback for demo password or static offline preview
-        if (emailVal.toLowerCase() === DEMO_EMAIL && passVal === DEMO_PASSWORD) {
-          const demoUser = { id: 'usr_demo_patient', name: 'Maya Roberts', email: DEMO_EMAIL, role: 'patient' };
-          saveSession(demoUser, 'demo_token');
-          authState.signedIn = true;
-          authState.name = demoUser.name;
-          authState.email = demoUser.email;
-          renderHeader();
-          syncPanels();
-          resetForm();
-          const successTitle = document.getElementById('successTitle');
-          if (successTitle) successTitle.focus();
-          showToast('Signed in with demo access');
-        } else {
-          setError(passwordInput, passwordError, err.message || 'Invalid email address or password.');
-          if (passwordInput) {
-            passwordInput.readOnly = false;
-            passwordInput.focus();
-          }
-          if (emailInput) emailInput.readOnly = false;
+        setError(passwordInput, passwordError, err.message || 'Invalid email address or password.');
+        if (passwordInput) {
+          passwordInput.readOnly = false;
+          passwordInput.focus();
         }
+        if (emailInput) emailInput.readOnly = false;
       } finally {
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -695,7 +721,7 @@ function initAuthModalListeners() {
     });
   }
 
-  // SIGN UP SUBMISSION -> SEND OTP
+  // SIGN UP SUBMISSION -> SUPABASE SENDS 6-DIGIT EMAIL OTP
   if (signupForm) {
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -731,47 +757,47 @@ function initAuthModalListeners() {
 
       signupSubmitBtn.disabled = true;
       signupSubmitBtn.setAttribute('aria-busy', 'true');
-      if (signupSubmitLabel) signupSubmitLabel.textContent = 'Generating 6-digit OTP…';
+      if (signupSubmitLabel) signupSubmitLabel.textContent = 'Contacting Supabase cloud…';
       if (signupSpinner) signupSpinner.hidden = false;
 
       try {
-        const res = await callAuthApi('send-otp', { email: emailVal, purpose: 'signup' });
+        const { data, error } = await supabase.auth.signUp({
+          email: emailVal,
+          password: passVal,
+          options: {
+            data: {
+              name: nameVal,
+              full_name: nameVal
+            }
+          }
+        });
+
+        if (error) {
+          throw error;
+        }
+
         pendingSignup = {
           name: nameVal,
           email: emailVal,
           password: passVal,
-          previewOtp: res.previewOtp || ''
+          previewOtp: ''
         };
 
         if (otpEmailTarget) otpEmailTarget.textContent = emailVal;
-        if (otpCodeDisplay) otpCodeDisplay.textContent = res.previewOtp || 'Sent';
+        if (otpCodeDisplay) otpCodeDisplay.textContent = 'Sent to Email';
+        const otpDemoBanner = document.getElementById('otpDemoBanner');
+        if (otpDemoBanner) {
+          otpDemoBanner.innerHTML = `<span>Verification code sent to <strong>${emailVal}</strong></span><span class="otp-badge" style="cursor:default">Supabase Cloud</span>`;
+        }
 
         otpDigits.forEach(d => { if (d) d.value = ''; });
         startOtpCountdown(600);
         switchAuthMode('otp');
         window.setTimeout(() => otpDigits[0]?.focus(), 100);
-        showToast(`Verification code generated for ${emailVal}`);
+        showToast(`6-digit verification code sent to ${emailVal}`);
       } catch (err) {
-        // Fallback for static hosts without backend: simulate secure code
-        if (err.message.includes('404') || err.message.includes('Failed to fetch')) {
-          const simCode = Math.floor(100000 + Math.random() * 900000).toString();
-          pendingSignup = {
-            name: nameVal,
-            email: emailVal,
-            password: passVal,
-            previewOtp: simCode
-          };
-          if (otpEmailTarget) otpEmailTarget.textContent = emailVal;
-          if (otpCodeDisplay) otpCodeDisplay.textContent = simCode;
-          otpDigits.forEach(d => { if (d) d.value = ''; });
-          startOtpCountdown(600);
-          switchAuthMode('otp');
-          window.setTimeout(() => otpDigits[0]?.focus(), 100);
-          showToast(`Offline demo: verification code is ${simCode}`);
-        } else {
-          setError(signupEmail, signupEmailError, err.message);
-          if (signupEmail) signupEmail.focus();
-        }
+        setError(signupEmail, signupEmailError, err.message || 'Registration failed.');
+        if (signupEmail) signupEmail.focus();
       } finally {
         signupSubmitBtn.disabled = false;
         signupSubmitBtn.removeAttribute('aria-busy');
@@ -841,18 +867,20 @@ function initAuthModalListeners() {
     otpCodeDisplay.addEventListener('click', () => fillOtpCode(pendingSignup.previewOtp));
   }
 
-  // Resend OTP
+  // Resend OTP via Supabase
   if (resendOtpBtn) {
     resendOtpBtn.addEventListener('click', async () => {
       if (!pendingSignup.email) return;
       resendOtpBtn.disabled = true;
       resendOtpBtn.textContent = 'Resending…';
       try {
-        const res = await callAuthApi('send-otp', { email: pendingSignup.email, purpose: 'signup' });
-        pendingSignup.previewOtp = res.previewOtp || '';
-        if (otpCodeDisplay) otpCodeDisplay.textContent = res.previewOtp || 'Sent';
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email: pendingSignup.email
+        });
+        if (error) throw error;
         startOtpCountdown(600);
-        showToast('A new 6-digit code has been generated');
+        showToast('A new 6-digit code has been emailed to your inbox');
       } catch (err) {
         showToast(err.message || 'Could not resend verification code');
       } finally {
@@ -862,7 +890,7 @@ function initAuthModalListeners() {
     });
   }
 
-  // VERIFY OTP & COMPLETE REGISTRATION
+  // VERIFY OTP & COMPLETE REGISTRATION WITH SUPABASE
   if (otpForm) {
     otpForm.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -878,23 +906,39 @@ function initAuthModalListeners() {
 
       verifyOtpBtn.disabled = true;
       verifyOtpBtn.setAttribute('aria-busy', 'true');
-      if (verifyOtpLabel) verifyOtpLabel.textContent = 'Verifying & creating account…';
+      if (verifyOtpLabel) verifyOtpLabel.textContent = 'Verifying with Supabase cloud…';
       if (verifyOtpSpinner) verifyOtpSpinner.hidden = false;
 
       try {
-        const res = await callAuthApi('signup', {
-          name: pendingSignup.name,
+        let verifyResult = await supabase.auth.verifyOtp({
           email: pendingSignup.email,
-          password: pendingSignup.password,
-          otp: code
+          token: code,
+          type: 'signup'
         });
 
+        if (verifyResult.error) {
+          verifyResult = await supabase.auth.verifyOtp({
+            email: pendingSignup.email,
+            token: code,
+            type: 'email'
+          });
+        }
+
+        if (verifyResult.error) {
+          throw verifyResult.error;
+        }
+
+        const data = verifyResult.data;
+        const user = data?.user || data?.session?.user;
+        const token = data?.session?.access_token || 'supa_token_' + Date.now();
+        const userName = user?.user_metadata?.name || user?.user_metadata?.full_name || pendingSignup.name || displayNameFromEmail(pendingSignup.email);
+
         stopOtpCountdown();
-        saveSession(res.user, res.token);
+        saveSession({ id: user?.id, name: userName, email: pendingSignup.email }, token);
         authState.signedIn = true;
-        authState.name = res.user.name;
-        authState.email = res.user.email;
-        authState.token = res.token;
+        authState.name = userName;
+        authState.email = pendingSignup.email;
+        authState.token = token;
 
         renderHeader();
         switchAuthMode('signin');
@@ -905,33 +949,10 @@ function initAuthModalListeners() {
         const successTitle = document.getElementById('successTitle');
         if (successTitle) successTitle.focus();
 
-        showToast(`Welcome, ${authState.name}! Your account is active.`);
+        showToast(`Welcome, ${authState.name}! Account verified in Supabase.`);
       } catch (err) {
-        // Fallback for static preview if offline and code matches previewOtp
-        if ((err.message.includes('404') || err.message.includes('Failed to fetch')) && code === pendingSignup.previewOtp) {
-          stopOtpCountdown();
-          const fallbackUser = {
-            id: 'usr_' + Date.now().toString(36),
-            name: pendingSignup.name,
-            email: pendingSignup.email,
-            role: 'patient'
-          };
-          saveSession(fallbackUser, 'client_demo_token');
-          authState.signedIn = true;
-          authState.name = fallbackUser.name;
-          authState.email = fallbackUser.email;
-
-          renderHeader();
-          switchAuthMode('signin');
-          const successPanel = document.getElementById('successPanel');
-          const whoami = document.getElementById('whoami');
-          if (whoami) whoami.textContent = authState.name;
-          if (successPanel) successPanel.hidden = false;
-          showToast(`Welcome, ${authState.name}! Account registered.`);
-        } else {
-          setError({ removeAttribute: () => {} }, otpError, err.message || 'Incorrect verification code.');
-          otpDigits.forEach(d => d?.classList.add('error'));
-        }
+        setError({ removeAttribute: () => {} }, otpError, err.message || 'Incorrect verification code.');
+        otpDigits.forEach(d => d?.classList.add('error'));
       } finally {
         verifyOtpBtn.disabled = false;
         verifyOtpBtn.removeAttribute('aria-busy');
@@ -946,7 +967,10 @@ function initAuthModalListeners() {
     doneBtn.addEventListener('click', () => openDashboard(doneBtn));
   }
 
-  function handleSignOut() {
+  async function handleSignOut() {
+    try {
+      await supabase.auth.signOut();
+    } catch (_) {}
     clearSession();
     stopOtpCountdown();
     authState.signedIn = false;
