@@ -1,0 +1,13 @@
+{
+  "name": "nurasense",
+  "version": "1.0.0",
+  "description": "Two-hour ECG early warning system for Thyrotoxic Periodic Paralysis (TPP)",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "start": "npm --prefix backend run start",
+    "watch:server": "python SAMSUNG_WATCH/server.py"
+  }
+}
+

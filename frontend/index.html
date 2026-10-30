@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0B5D63">
+  <title>NuraSense — Two-hour ECG early warning for TPP</title>
+  <meta name="description" content="NuraSense reads a single-lead ECG to track heart rate, HRV and QTc, and warns of thyrotoxic periodic paralysis risk up to two hours before weakness begins.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Public+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script>document.documentElement.classList.remove('no-js');document.documentElement.classList.add('js');</script>
+  <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap site-header__inner">
+    <a class="brand" href="#top" aria-label="NuraSesne home">
+      <svg width="32" height="32" viewBox="0 0 40 40" role="img" aria-label="NuraSesne mark">
+        <rect width="40" height="40" rx="10" fill="#0B5D63"/>
+        <path d="M8 21h5.2l2.5-6.4 3.4 11 2.7-7.2H32" fill="none" stroke="#CFE7E1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand__name">NuraSesne</span>
+      <span class="brand__sub">TPP</span>
+    </a>
+
+    <nav class="site-nav" aria-label="Primary">
+      <ul>
+        <li><a href="#physiology">Physiology</a></li>
+        <li><a href="#pipeline">Signal path</a></li>
+        <li><a href="#model">Model</a></li>
+        <li><a href="#dashboard">Dashboard</a></li>
+      </ul>
+    </nav>
+
+    <div class="header-actions">
+      <button class="mobile-nav-toggle" id="mobileNavToggle" type="button" aria-label="Toggle navigation menu" aria-expanded="false">
+        <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="3" y1="12" x2="21" y2="12"></line>
+          <line x1="3" y1="6" x2="21" y2="6"></line>
+          <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+      </button>
+      <button class="btn btn-primary js-login" id="headerLogin" type="button"><span class="js-login-label">Patient login</span></button>
+      <div class="signed-in" id="signedInCluster" hidden>
+        <button class="btn btn-primary header-dashboard" id="headerDashboard" type="button" aria-label="Open dashboard">
+          <svg class="od-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="7" height="7" rx="1.4"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.4"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.4"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.4"/>
+          </svg>
+          <span>Dashboard</span>
+        </button>
+        <span class="avatar" id="headerAvatar" aria-hidden="true">MR</span>
+        <span class="signed-in-text">
+          <span class="signed-in-label">Signed in</span>
+          <span class="signed-in-name" id="headerName">Maya Roberts</span>
+        </span>
+        <button class="btn btn-quiet" id="headerSignOut" type="button">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="mobile-nav-drawer" id="mobileNavDrawer" aria-label="Mobile Navigation">
+    <a href="#physiology">Physiology</a>
+    <a href="#pipeline">Signal path</a>
+    <a href="#model">Model</a>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#scope">Scope</a>
+  </nav>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap hero__grid">
+      <div class="hero__copy">
+        <p class="eyebrow reveal">ECG early warning · TPP</p>
+        <h1 class="reveal" style="--d:60ms">Two hours of warning, <em>before</em> the weakness sets in.</h1>
+        <p class="hero__lead reveal" style="--d:120ms">
+          NuraSesne reads a single-lead ECG and follows the autonomic and electrical
+          shifts that come before a thyrotoxic periodic paralysis episode — heart rate,
+          HRV and QTc — so rising risk reaches you while there is still time to act.
+        </p>
+        <div class="hero__actions reveal" style="--d:180ms">
+          <button class="btn btn-primary js-login" type="button"><span class="js-login-label">Patient login</span></button>
+          <a class="btn btn-outline" href="#pipeline">
+            Follow the signal
+            <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 12h13M12.5 6l6 6-6 6"/>
+            </svg>
+          </a>
+        </div>
+        <ul class="spec-row reveal" style="--d:240ms">
+          <li>
+            <span class="spec__value">1</span>
+            <span class="spec__label">ECG lead</span>
+          </li>
+          <li>
+            <span class="spec__value">15 min</span>
+            <span class="spec__label">Feature window</span>
+          </li>
+          <li>
+            <span class="spec__value">2 h</span>
+            <span class="spec__label">Warning horizon</span>
+          </li>
+        </ul>
+      </div>
+
+      <figure class="monitor reveal" style="--d:160ms" aria-label="Sample ECG monitor with heart rate, HRV, QTc and a two-hour risk score">
+        <div class="monitor__top">
+          <span class="monitor__title"><span class="live-dot" aria-hidden="true"></span>Live monitor</span>
+          <span class="tag tag--sample">Sample data</span>
+        </div>
+
+        <div class="ecg-panel">
+          <div class="ecg-panel__bar">
+            <span>Lead I · 25 mm/s</span>
+            <span>10 mm/mV</span>
+          </div>
+          <svg class="ecg-svg" viewBox="0 0 480 120" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <path id="beatHero" class="ecg-trace" vector-effect="non-scaling-stroke" d="M0 60L10 60Q18 47 26 60L42 60L46 65L50 16L55 80L60 60Q70 44 84 60L120 60"/>
+            </defs>
+            <g class="ecg-track">
+              <use href="#beatHero" x="0" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="120" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="240" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="360" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="480" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="600" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              <use href="#beatHero" x="720" y="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+            </g>
+          </svg>
+        </div>
+
+        <div class="vitals">
+          <div class="vital">
+            <span class="vital__label">Heart rate</span>
+            <span class="vital__value"><span class="vital-hr-val">86</span><span class="vital__unit">bpm</span></span>
+            <span class="delta">
+              <svg class="od-icon" style="--od-icon-size:11px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
+              +11 bpm
+            </span>
+          </div>
+          <div class="vital">
+            <span class="vital__label">RMSSD</span>
+            <span class="vital__value"><span class="vital-rmssd-val">31</span><span class="vital__unit">ms</span></span>
+            <span class="delta">
+              <svg class="od-icon" style="--od-icon-size:11px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10M17 9v8H9"/></svg>
+              −16 ms
+            </span>
+          </div>
+          <div class="vital">
+            <span class="vital__label">QTc</span>
+            <span class="vital__value">458<span class="vital__unit">ms</span></span>
+            <span class="delta">
+              <svg class="od-icon" style="--od-icon-size:11px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg>
+              +24 ms
+            </span>
+          </div>
+        </div>
+
+        <div class="monitor__risk">
+          <div class="gauge" style="--risk:.62">
+            <svg class="gauge__svg" viewBox="0 0 140 140" aria-hidden="true">
+              <circle class="gauge__track" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+              <circle class="gauge__arc" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+            </svg>
+            <div class="gauge__center">
+              <span><span class="gauge__num">62</span><span class="gauge__pct">%</span></span>
+              <span class="gauge__cap">2 h risk</span>
+            </div>
+          </div>
+          <div>
+            <p class="risk-label">Risk · next two hours</p>
+            <p class="risk-state">Elevated</p>
+            <p class="risk-note">Episode possible. Preventive guidance is ready in your care plan.</p>
+          </div>
+        </div>
+
+        <p class="monitor__foot">
+          <span>04:12</span>
+          <span>Baseline: personal 7-day</span>
+          <span>Illustrative readings</span>
+        </p>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="physiology">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow reveal">Physiology</p>
+        <h2 class="reveal" style="--d:60ms">The body announces TPP before it arrives.</h2>
+        <p class="section__lead reveal" style="--d:120ms">
+          Thyroid hormone excess keeps the sympathetic nervous system in overdrive.
+          As an episode approaches, that overdrive intensifies and potassium shifts
+          into cells — changes that surface in heart rate, HRV and the QT interval
+          hours before muscle weakness.
+        </p>
+      </div>
+
+      <div class="chart-card reveal" style="--d:120ms">
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-swatch" aria-hidden="true"></span>Modelled risk</span>
+          <span class="legend-item"><span class="legend-swatch legend-swatch--alt" aria-hidden="true"></span>QTc trend</span>
+        </div>
+
+        <div class="chart-wrap">
+          <svg class="chart-svg" viewBox="0 0 720 210" role="img" aria-label="Illustrative chart: modelled risk and QTc trend rising over six hours until an alert threshold at two hours before an episode">
+            <line class="chart-grid" x1="60" y1="40" x2="680" y2="40"/>
+            <line class="chart-grid" x1="60" y1="90" x2="680" y2="90"/>
+            <line class="chart-grid" x1="60" y1="140" x2="680" y2="140"/>
+            <line class="chart-grid" x1="60" y1="190" x2="680" y2="190"/>
+
+            <line class="chart-threshold" x1="473" y1="32" x2="473" y2="198"/>
+
+            <path class="chart-qtc" pathLength="1" d="M60 186 L150 183 C220 180 268 174 330 164 C392 154 430 142 473 140 C530 137 610 130 680 126"/>
+            <path class="chart-risk" pathLength="1" d="M60 194 L140 191 C220 187 268 180 330 168 C392 156 430 136 473 104 C530 74 600 58 680 50"/>
+            <circle class="chart-marker" cx="473" cy="104" r="4.5"/>
+            <circle class="chart-marker" cx="473" cy="140" r="3.5"/>
+          </svg>
+          <div class="chart-axis-row" aria-hidden="true">
+            <span style="left:8.33%">−6 h</span>
+            <span style="left:37%">−4 h</span>
+            <span style="left:65.7%">−2 h</span>
+            <span style="left:94.4%">episode</span>
+          </div>
+        </div>
+        <p class="chart-caption">Illustrative trends of expected signal behaviour. The dashed line marks the alert threshold two hours before an episode — not measured patient data.</p>
+      </div>
+
+      <div class="phase-grid">
+        <article class="phase reveal" style="--d:0ms">
+          <p class="phase__time">T − 6 h</p>
+          <h3>Sympathetic tone climbs</h3>
+          <p>Resting heart rate drifts above your own baseline while short-term HRV
+            flattens — the earliest measurable sign of rising thyrotoxic drive.</p>
+        </article>
+        <article class="phase reveal" style="--d:80ms">
+          <p class="phase__time">T − 2 h</p>
+          <h3>The electrical signature shifts</h3>
+          <p>As potassium moves into cells, QTc lengthens and T waves flatten. The
+            risk score crosses the threshold set with your clinician.</p>
+        </article>
+        <article class="phase reveal" style="--d:160ms">
+          <p class="phase__time">T − 0</p>
+          <h3>Weakness begins</h3>
+          <p>The episode you had two hours to prepare for — with guidance already
+            in front of you and your care circle aware.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="pipeline">
+    <div class="wrap">
+      <div class="section__head section__head--row">
+        <div>
+          <p class="eyebrow reveal">Signal path</p>
+          <h2 class="reveal" style="--d:60ms">From a raw heartbeat to a risk score.</h2>
+          <p class="section__lead reveal" style="--d:120ms">
+            Every number on this page comes from one sensor and one stream. Six stages,
+            each with a single job.
+          </p>
+        </div>
+        <p class="section__aside reveal" style="--d:180ms">01 — 06</p>
+      </div>
+
+      <div class="pipe-card reveal" style="--d:120ms">
+        <div class="pipe-tabs" role="tablist" aria-label="Signal path stages">
+          <button class="pipe-tab" id="tab-acquire" role="tab" aria-selected="true" aria-controls="panel-acquire" tabindex="0"><span class="pipe-tab__num">01</span>Acquire</button>
+          <button class="pipe-tab" id="tab-clean" role="tab" aria-selected="false" aria-controls="panel-clean" tabindex="-1"><span class="pipe-tab__num">02</span>Clean</button>
+          <button class="pipe-tab" id="tab-detect" role="tab" aria-selected="false" aria-controls="panel-detect" tabindex="-1"><span class="pipe-tab__num">03</span>Detect</button>
+          <button class="pipe-tab" id="tab-derive" role="tab" aria-selected="false" aria-controls="panel-derive" tabindex="-1"><span class="pipe-tab__num">04</span>Derive</button>
+          <button class="pipe-tab" id="tab-model" role="tab" aria-selected="false" aria-controls="panel-model" tabindex="-1"><span class="pipe-tab__num">05</span>Model</button>
+          <button class="pipe-tab" id="tab-alert" role="tab" aria-selected="false" aria-controls="panel-alert" tabindex="-1"><span class="pipe-tab__num">06</span>Alert</button>
+        </div>
+
+        <div class="pipe-panel" id="panel-acquire" role="tabpanel" aria-labelledby="tab-acquire">
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 01</p>
+            <h3>One sensor, one waveform</h3>
+            <p>A single-lead ECG sensor sits on the body and streams the raw electrical
+              signal — P wave, QRS complex, T wave — sampled continuously and sent over
+              Bluetooth or cable. No wearables, no derived step counts: just the heart's
+              own electrical trace.</p>
+            <div class="chips">
+              <span class="chip">Single lead</span>
+              <span class="chip">Continuous stream</span>
+              <span class="chip">Raw waveform</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>sampling</span><span>continuous</span></p>
+            <p class="readout__line"><span>lead</span><span>I · 1 channel</span></p>
+            <p class="readout__line"><span>transport</span><span>BLE / USB</span></p>
+          </div>
+        </div>
+
+        <div class="pipe-panel" id="panel-clean" role="tabpanel" aria-labelledby="tab-clean" hidden>
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 02</p>
+            <h3>Remove what the body adds</h3>
+            <p>Raw ECG carries movement noise, 50 Hz mains interference and respiratory
+              drift. A bandpass filter keeps the heart's band, a notch filter removes the
+              power line, and baseline correction flattens the slow swing — leaving a
+              waveform the next stage can trust.</p>
+            <div class="chips">
+              <span class="chip">0.5–40 Hz bandpass</span>
+              <span class="chip">50 Hz notch</span>
+              <span class="chip">Baseline correction</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>bandpass</span><span>0.5–40 Hz</span></p>
+            <p class="readout__line"><span>notch</span><span>50 Hz</span></p>
+            <p class="readout__line"><span>drift</span><span>corrected</span></p>
+          </div>
+        </div>
+
+        <div class="pipe-panel" id="panel-detect" role="tabpanel" aria-labelledby="tab-detect" hidden>
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 03</p>
+            <h3>Find every R peak</h3>
+            <p>Pan-Tompkins style detection locates the apex of each QRS complex. The
+              gap between consecutive peaks is the RR interval in milliseconds — the
+              raw material for heart rate and every HRV metric that follows.</p>
+            <div class="chips">
+              <span class="chip">R-peak detection</span>
+              <span class="chip">RR intervals</span>
+              <span class="chip">Artifact rejection</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>R-peak</span><span>0.41 s</span></p>
+            <p class="readout__line"><span>RR interval</span><span>812 ms</span></p>
+            <p class="readout__line"><span>signal quality</span><span>clean</span></p>
+          </div>
+        </div>
+
+        <div class="pipe-panel" id="panel-derive" role="tabpanel" aria-labelledby="tab-derive" hidden>
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 04</p>
+            <h3>Turn intervals into physiology</h3>
+            <p>HR is 60,000 divided by the mean RR interval. From the RR series come SDNN,
+              RMSSD and the LF/HF ratio — a live picture of autonomic balance. From the
+              waveform come QTc, T-wave amplitude and ST behaviour, the electrical
+              signature of a potassium shift.</p>
+            <div class="chips">
+              <span class="chip">Heart rate</span>
+              <span class="chip">SDNN · RMSSD · LF/HF</span>
+              <span class="chip">QTc · T wave</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>HR</span><span>86 bpm</span></p>
+            <p class="readout__line"><span>RMSSD</span><span>31 ms</span></p>
+            <p class="readout__line"><span>QTc</span><span>458 ms</span></p>
+          </div>
+        </div>
+
+        <div class="pipe-panel" id="panel-model" role="tabpanel" aria-labelledby="tab-model" hidden>
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 05</p>
+            <h3>Read the trend, not the snapshot</h3>
+            <p>Each 15-minute window is compared with your own seven-day baseline over a
+              six-hour lookback. An LSTM learns how those trends unfold in time; XGBoost
+              combines the learned pattern with tabular triggers into a single risk score
+              between 0 and 1.</p>
+            <div class="chips">
+              <span class="chip">15 min window</span>
+              <span class="chip">6 h lookback</span>
+              <span class="chip">LSTM + XGBoost</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>window</span><span>15 min · 6 h</span></p>
+            <p class="readout__line"><span>embedding</span><span>LSTM → embedding</span></p>
+            <p class="readout__line"><span>score</span><span>0.62</span></p>
+          </div>
+        </div>
+
+        <div class="pipe-panel" id="panel-alert" role="tabpanel" aria-labelledby="tab-alert" hidden>
+          <div class="pipe-panel__text">
+            <p class="pipe-panel__kicker">Stage 06</p>
+            <h3>Two hours to act</h3>
+            <p>When the score crosses the threshold agreed with your clinician, the alert
+              arrives on screen and as a push notification: the risk, the features driving
+              it, and the preventive steps already written into your care plan.</p>
+            <div class="chips">
+              <span class="chip">Push + on-screen</span>
+              <span class="chip">2 h horizon</span>
+              <span class="chip">Care-plan guidance</span>
+            </div>
+          </div>
+          <div class="readout">
+            <p class="readout__label">Live derivation</p>
+            <p class="readout__line"><span>threshold</span><span>0.60</span></p>
+            <p class="readout__line"><span>alert issued</span><span>04:12</span></p>
+            <p class="readout__line"><span>window</span><span>T − 2 h</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="baseline">
+    <div class="wrap">
+      <div class="base-grid">
+        <div>
+          <p class="eyebrow reveal">Personal baseline</p>
+          <h2 class="reveal" style="--d:60ms">Compared with you, not the population.</h2>
+          <p class="section__lead reveal" style="--d:120ms">
+            A resting heart rate of 86 bpm means something different for every patient.
+            NuraSesne keeps a rolling seven-day baseline and scores your deviation from
+            your own normal — then keeps learning as it settles.
+          </p>
+          <ul class="signal-list reveal" style="--d:180ms">
+            <li class="signal">
+              <span class="signal__name">Heart rate</span>
+              <span class="signal__note">Sympathetic drive and early drift above baseline</span>
+            </li>
+            <li class="signal">
+              <span class="signal__name">RMSSD</span>
+              <span class="signal__note">Short-term vagal tone; falls first under stress</span>
+            </li>
+            <li class="signal">
+              <span class="signal__name">LF/HF ratio</span>
+              <span class="signal__note">Balance between sympathetic and parasympathetic tone</span>
+            </li>
+            <li class="signal">
+              <span class="signal__name">QTc</span>
+              <span class="signal__note">Electrical fingerprint of a potassium shift</span>
+            </li>
+            <li class="signal">
+              <span class="signal__name">T-wave amplitude</span>
+              <span class="signal__note">Flattening or inversion as potassium falls</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="window reveal" style="--d:120ms">
+          <div class="window__top">
+            <span class="window__title">Feature window</span>
+            <span class="tag tag--sample">Sample · 04:10</span>
+          </div>
+          <div class="fw-list">
+            <div class="fw-row">
+              <span class="fw-row__name">Resting HR<span class="fw-row__base">7-day baseline 75 bpm</span></span>
+              <span class="fw-row__value">86 <em>bpm</em></span>
+              <span class="status-chip status-chip--warn">Elevated</span>
+            </div>
+            <div class="fw-row">
+              <span class="fw-row__name">RMSSD<span class="fw-row__base">7-day baseline 47 ms</span></span>
+              <span class="fw-row__value">31 <em>ms</em></span>
+              <span class="status-chip status-chip--warn">Suppressed</span>
+            </div>
+            <div class="fw-row">
+              <span class="fw-row__name">LF/HF ratio<span class="fw-row__base">7-day baseline 2.2</span></span>
+              <span class="fw-row__value">3.4</span>
+              <span class="status-chip status-chip--warn">Shifted</span>
+            </div>
+            <div class="fw-row">
+              <span class="fw-row__name">QTc<span class="fw-row__base">7-day baseline 434 ms</span></span>
+              <span class="fw-row__value">458 <em>ms</em></span>
+              <span class="status-chip status-chip--warn">Prolonged</span>
+            </div>
+            <div class="fw-row">
+              <span class="fw-row__name">T-wave amplitude<span class="fw-row__base">7-day baseline 0.28 mV</span></span>
+              <span class="fw-row__value">0.12 <em>mV</em></span>
+              <span class="status-chip status-chip--warn">Flattening</span>
+            </div>
+            <div class="fw-row">
+              <span class="fw-row__name">Local time<span class="fw-row__base">Early-morning window</span></span>
+              <span class="fw-row__value">04:10</span>
+              <span class="status-chip status-chip--neutral">Typical</span>
+            </div>
+          </div>
+          <p class="window__foot">Lookback 6 h · resolution 15 min · scored against personal baseline</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="model">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow reveal">Model</p>
+        <h2 class="reveal" style="--d:60ms">A slow signal needs a model with memory.</h2>
+        <p class="section__lead reveal" style="--d:120ms">
+          TPP precursors unfold over hours, not seconds. The LSTM holds that history;
+          XGBoost turns it into a decision you and your clinician can inspect.
+        </p>
+      </div>
+
+      <div class="flow reveal" style="--d:120ms">
+        <div class="flow__node">
+          <p class="flow__label">Input</p>
+          <p class="flow__title">6-hour trends</p>
+          <p class="flow__desc">HR, HRV and QTc windows against your baseline</p>
+        </div>
+        <div class="flow__arrow" aria-hidden="true">
+          <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12.5 6l6 6-6 6"/></svg>
+        </div>
+        <div class="flow__node flow__node--accent">
+          <p class="flow__label">Stage one</p>
+          <p class="flow__title">LSTM</p>
+          <p class="flow__desc">Learns how the hours before an episode unfold</p>
+        </div>
+        <div class="flow__arrow" aria-hidden="true">
+          <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12.5 6l6 6-6 6"/></svg>
+        </div>
+        <div class="flow__node flow__node--accent">
+          <p class="flow__label">Stage two</p>
+          <p class="flow__title">XGBoost</p>
+          <p class="flow__desc">Weighs trends with tabular triggers and time of day</p>
+        </div>
+        <div class="flow__arrow" aria-hidden="true">
+          <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12.5 6l6 6-6 6"/></svg>
+        </div>
+        <div class="flow__node flow__node--out">
+          <p class="flow__label">Output</p>
+          <p class="flow__title">Risk 0–1</p>
+          <p class="flow__desc">Two-hour probability, thresholded with your clinician</p>
+        </div>
+      </div>
+
+      <div class="model-notes">
+        <article class="model-note reveal">
+          <h3>Trend, not snapshot</h3>
+          <p>The model reads the slope of heart rate, HRV and QTc — a single odd reading
+            is not enough to raise an alert.</p>
+        </article>
+        <article class="model-note reveal" style="--d:80ms">
+          <h3>Explainable by design</h3>
+          <p>Every alert can show which features pushed the score up, so you and your
+            clinician can judge whether it makes sense.</p>
+        </article>
+        <article class="model-note reveal" style="--d:160ms">
+          <h3>Tuned with your clinician</h3>
+          <p>Thresholds are set per patient and reviewed as your personal baseline
+            settles, rather than fixed for everyone.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="alerting">
+    <div class="wrap">
+      <div class="alert-band reveal">
+        <div class="alert-band__copy">
+          <p class="eyebrow">The warning</p>
+          <h2>When risk crosses the line, the page changes.</h2>
+          <p>At T−2 hours the monitor shifts from observation to guidance: what the score
+            is, which signals are driving it, and the preventive steps already agreed with
+            your clinician.</p>
+          <p class="alert-band__fine">Alerts are probabilistic. They support your care
+            plan; they do not replace emergency care or clinical judgement.</p>
+        </div>
+
+        <div class="alert-card" role="group" aria-label="Sample elevated risk alert">
+          <div class="alert-card__stripe"></div>
+          <div class="alert-card__body">
+            <div class="alert-card__head">
+              <span class="alert-card__label">
+                <svg class="od-icon" style="--od-icon-size:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 8v5M12 16.5v.5"/><path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                Elevated risk
+              </span>
+              <span class="alert-card__time">04:12</span>
+            </div>
+            <div class="alert-card__score">
+              <strong>62%</strong>
+              <span>episode risk in the next two hours</span>
+            </div>
+            <div class="alert-card__drivers">
+              <span class="driver">QTc +24 ms</span>
+              <span class="driver">RMSSD −34%</span>
+              <span class="driver">HR +11 bpm</span>
+            </div>
+            <div class="alert-card__plan">
+              <h3>From your care plan</h3>
+              <ul>
+                <li>
+                  <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                  Skip heavy carbohydrate meals
+                </li>
+                <li>
+                  <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                  Avoid strenuous activity
+                </li>
+                <li>
+                  <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                  Stay somewhere safe and seated
+                </li>
+                <li>
+                  <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+                  Contact your clinician or take preventive medication as prescribed
+                </li>
+              </ul>
+            </div>
+            <p class="alert-card__foot">
+              <span>Sample alert</span>
+              <span>Care circle notified</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="dashboard">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow reveal">Dashboard</p>
+        <h2 class="reveal" style="--d:60ms">One clinical view, from signal to history.</h2>
+        <p class="section__lead reveal" style="--d:120ms">
+          Live waveform, current vitals, the two-hour risk gauge and every past alert in
+          one place — with your baseline learning quietly in the background.
+        </p>
+      </div>
+
+      <div class="dash reveal" style="--d:120ms">
+        <div class="dash__top">
+          <div class="dash__id">
+            <span class="dash__avatar" aria-hidden="true">MR</span>
+            <span class="od-stack" style="--od-gap:1px">
+              <span class="dash__name">Patient overview</span>
+              <span class="dash__meta">Baseline 7 d · lead I · streaming</span>
+            </span>
+          </div>
+          <div class="dash__right">
+            <span class="tag tag--sample">Preview · sample</span>
+            <span class="tag">04:12</span>
+          </div>
+        </div>
+
+        <div class="dash__grid">
+          <div class="dash__ecg ecg-panel">
+            <div class="ecg-panel__bar">
+              <span>ECG · lead I</span>
+              <span>25 mm/s · 10 mm/mV</span>
+            </div>
+            <svg class="ecg-svg ecg-svg--sm" viewBox="0 0 480 120" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <path id="beatDash" class="ecg-trace" vector-effect="non-scaling-stroke" d="M0 60L10 60Q18 47 26 60L42 60L46 65L50 16L55 80L60 60Q70 44 84 60L120 60"/>
+              </defs>
+              <g class="ecg-track">
+                <use href="#beatDash" x="0" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+                <use href="#beatDash" x="120" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+                <use href="#beatDash" x="240" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+                <use href="#beatDash" x="360" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+                <use href="#beatDash" x="480" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+                <use href="#beatDash" x="600" class="ecg-trace" vector-effect="non-scaling-stroke"/>
+              </g>
+            </svg>
+          </div>
+
+          <div class="dash__vitals">
+            <div class="vital">
+              <span class="vital__label">HR</span>
+              <span class="vital__value"><span class="vital-hr-val">86</span><span class="vital__unit">bpm</span></span>
+            </div>
+            <div class="vital">
+              <span class="vital__label">RMSSD</span>
+              <span class="vital__value"><span class="vital-rmssd-val">31</span><span class="vital__unit">ms</span></span>
+            </div>
+            <div class="vital">
+              <span class="vital__label">QTc</span>
+              <span class="vital__value">458<span class="vital__unit">ms</span></span>
+            </div>
+            <div class="vital">
+              <span class="vital__label">LF/HF</span>
+              <span class="vital__value">3.4</span>
+            </div>
+          </div>
+
+          <div class="dash__gauge">
+            <div class="gauge gauge--lg" style="--risk:.62">
+              <svg class="gauge__svg" viewBox="0 0 140 140" aria-hidden="true">
+                <circle class="gauge__track" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+                <circle class="gauge__arc" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+              </svg>
+              <div class="gauge__center">
+                <span><span class="gauge__num">62</span><span class="gauge__pct">%</span></span>
+                <span class="gauge__cap">2 h risk</span>
+              </div>
+            </div>
+            <div class="od-stack" style="--od-gap:4px">
+              <span class="dash__gauge-label">Next two hours</span>
+              <span class="risk-state">Elevated</span>
+              <span class="dash__gauge-note">Preventive guidance is open in your care plan.</span>
+            </div>
+          </div>
+
+          <div class="dash__history">
+            <div class="dash__history-head">
+              <span class="dash__history-title">Alert history</span>
+              <span class="dash__meta">Last 7 days · sample</span>
+            </div>
+            <div class="hist">
+              <div class="hist__row">
+                <span class="hist__time">12 Oct · 04:10</span>
+                <span class="hist__label">Elevated risk<span>Alert sent to care circle</span></span>
+                <span class="hist__score">62%</span>
+                <span class="hist__status status-chip status-chip--warn">Acknowledged</span>
+              </div>
+              <div class="hist__row">
+                <span class="hist__time">09 Oct · 03:22</span>
+                <span class="hist__label">Watch<span>Monitoring, no alert raised</span></span>
+                <span class="hist__score">41%</span>
+                <span class="hist__status status-chip status-chip--neutral">Monitoring</span>
+              </div>
+              <div class="hist__row">
+                <span class="hist__time">04 Oct · 23:40</span>
+                <span class="hist__label">Elevated risk<span>Alert sent to care circle</span></span>
+                <span class="hist__score">57%</span>
+                <span class="hist__status status-chip status-chip--warn">Acknowledged</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-launch">
+        <span class="dash-launch__note"><span class="tag">Sample · demo</span> Step into the signed-in patient view.</span>
+        <button class="btn btn-primary" id="previewDashboardBtn" type="button">Open the full dashboard</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="scope">
+    <div class="wrap">
+      <div class="section__head">
+        <p class="eyebrow reveal">Scope</p>
+        <h2 class="reveal" style="--d:60ms">An early-warning instrument, not a diagnosis.</h2>
+      </div>
+
+      <div class="scope-grid">
+        <article class="scope reveal">
+          <p class="scope__num">01</p>
+          <h3>One lead, one signal</h3>
+          <p>A single-lead ECG sees rhythm and repolarisation, not everything. It is one
+            input into your care, not a full cardiac workup.</p>
+        </article>
+        <article class="scope reveal" style="--d:80ms">
+          <p class="scope__num">02</p>
+          <h3>Probabilities, not promises</h3>
+          <p>A risk score expresses likelihood. It can rise without an episode and can
+            miss one — your clinician's judgement always comes first.</p>
+        </article>
+        <article class="scope reveal" style="--d:160ms">
+          <p class="scope__num">03</p>
+          <h3>Emergency care still applies</h3>
+          <p>If you cannot move, collapse, or have trouble breathing, contact emergency
+            services. Do not wait for an alert.</p>
+        </article>
+      </div>
+
+      <div class="cta reveal">
+        <div>
+          <h2>Keep two hours on your side.</h2>
+          <p>Sign in to see your live signal, your personal baseline and who is on call.</p>
+        </div>
+        <button class="btn btn-primary js-login" type="button"><span class="js-login-label">Patient login</span></button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-top">
+      <a class="footer-brand" href="#top">
+        <svg width="26" height="26" viewBox="0 0 40 40" aria-hidden="true">
+          <rect width="40" height="40" rx="10" fill="#0B5D63"/>
+          <path d="M8 21h5.2l2.5-6.4 3.4 11 2.7-7.2H32" fill="none" stroke="#CFE7E1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>NuraSesne</span>
+      </a>
+      <nav class="footer-links" aria-label="Footer">
+        <a href="#physiology">Physiology</a>
+        <a href="#pipeline">Signal path</a>
+        <a href="#model">Model</a>
+        <a href="#dashboard">Dashboard</a>
+        <button class="link-btn js-login" type="button"><span class="js-login-label">Patient login</span></button>
+      </nav>
+    </div>
+    <p class="footer-note">
+      NuraSesne is an early-warning system for thyrotoxic periodic paralysis. It does not
+      diagnose TPP, replace clinical judgement, or substitute for emergency services.
+      Readings and alerts shown on this page are illustrative sample data.
+    </p>
+    <p class="footer-legal">© 2026 NuraSesne</p>
+  </div>
+</footer>
+
+<div class="app-shell" id="dashboardApp" hidden>
+  <aside class="app-rail" aria-label="Patient dashboard navigation">
+    <button class="brand app-brand" type="button" data-exit-dashboard aria-label="Back to NuraSesne home">
+      <svg width="30" height="30" viewBox="0 0 40 40" aria-hidden="true">
+        <rect width="40" height="40" rx="10" fill="#0B5D63"/>
+        <path d="M8 21h5.2l2.5-6.4 3.4 11 2.7-7.2H32" fill="none" stroke="#CFE7E1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand__name">NuraSesne</span>
+      <span class="brand__sub">TPP</span>
+    </button>
+
+    <nav class="app-nav" aria-label="Dashboard sections">
+      <button class="app-nav__btn is-active" type="button" data-dash-target="dash-overview" aria-current="location">
+        <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
+        </svg>
+        <span>Overview</span>
+      </button>
+      <button class="app-nav__btn" type="button" data-dash-target="dash-live">
+        <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12h4l2.4-5.8 4.1 11.6L16 12h5"/>
+        </svg>
+        <span>Live signal</span>
+      </button>
+      <button class="app-nav__btn" type="button" data-dash-target="dash-potassium">
+        <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.2s6 6.3 6 10.3a6 6 0 0 1-12 0c0-4 6-10.3 6-10.3Z"/><path d="M9.5 13.6a2.7 2.7 0 0 0 2.6 2.8"/>
+        </svg>
+        <span>Potassium</span>
+      </button>
+      <button class="app-nav__btn" type="button" data-dash-target="dash-history">
+        <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 1.8"/>
+        </svg>
+        <span>History</span>
+      </button>
+      <button class="app-nav__btn" type="button" data-dash-target="dash-care">
+        <svg class="od-icon" style="--od-icon-size:17px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="9.5" cy="8" r="3.3"/><path d="M3.5 19v-1.4A3.6 3.6 0 0 1 7.1 14h4.8a3.6 3.6 0 0 1 3.6 3.6V19"/><path d="M16.6 5.1a3.3 3.3 0 0 1 0 5.8M18 14.2a3.6 3.6 0 0 1 2.5 3.4V19"/>
+        </svg>
+        <span>Care circle</span>
+      </button>
+    </nav>
+
+    <div class="app-rail__foot">
+      <div class="sensor-card">
+        <span class="sensor-title"><span class="live-dot"></span>Sensor connected</span>
+        <span class="sensor-row"><span>Lead I · chest</span><span>Battery 86%</span></span>
+        <span class="sensor-row"><span>Last sync</span><span id="railSync">just now</span></span>
+      </div>
+      <button class="app-exit" type="button" data-exit-dashboard>
+        <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M19 12H5M11 6l-6 6 6 6"/>
+        </svg>
+        Back to site
+      </button>
+      <div class="app-person">
+        <span class="avatar" id="dashRailAvatar" aria-hidden="true">MR</span>
+        <span class="od-stack" style="--od-gap:0">
+          <span class="app-person__name" id="dashRailName">Maya Roberts</span>
+          <span class="app-person__meta">Demo patient</span>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="app-body">
+    <header class="app-top">
+      <div class="app-top__left">
+        <span class="app-mobile-brand">
+          <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
+            <rect width="40" height="40" rx="10" fill="#0B5D63"/>
+            <path d="M8 21h5.2l2.5-6.4 3.4 11 2.7-7.2H32" fill="none" stroke="#CFE7E1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>NuraSesne</span>
+        </span>
+        <div class="app-top__meta">
+          <span class="app-top__eyebrow">Patient dashboard</span>
+          <span class="app-top__date" id="dashDate">Saturday 24 October</span>
+        </div>
+      </div>
+
+      <div class="app-top__right">
+        <span class="stream-pill"><span class="live-dot"></span>Streaming · lead I</span>
+
+        <div class="app-pop-wrap">
+          <button class="icon-btn" id="dashBell" type="button" aria-label="Notifications, 1 unread" aria-expanded="false" aria-controls="dashNotif">
+            <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8.5a6 6 0 1 0-12 0c0 6.5-2.6 6.5-2.6 8.5h17.2c0-2-2.6-2-2.6-8.5Z"/><path d="M10 20.3a2.2 2.2 0 0 0 4 0"/>
+            </svg>
+            <span class="icon-btn__badge" id="bellBadge">1</span>
+          </button>
+
+          <div class="popover" id="dashNotif" hidden>
+            <div class="popover__head">
+              <span class="popover__title">Notifications</span>
+              <button class="link-mini" id="markAllRead" type="button">Mark all read</button>
+            </div>
+            <div id="dashNotifList"></div>
+            <div class="popover__foot">
+              <button class="link-mini" type="button" data-dash-target="dash-history">View alert history</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="app-pop-wrap">
+          <button class="profile-btn" id="dashProfileBtn" type="button" aria-label="Open profile menu" aria-expanded="false" aria-controls="dashProfileMenu">
+            <span class="avatar" id="dashAvatar" aria-hidden="true">MR</span>
+            <span class="profile-name" id="dashProfileName">Maya</span>
+            <svg class="od-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m7 10 5 5 5-5"/>
+            </svg>
+          </button>
+
+          <div class="popover profile-menu" id="dashProfileMenu" hidden>
+            <div class="menu-account">
+              <span class="db-label">Signed in</span>
+              <span class="app-person__name" id="dashMenuName">Maya Roberts</span>
+              <span class="app-person__meta">Demo patient</span>
+            </div>
+            <div class="menu-sep"></div>
+            <button class="menu-item" type="button" data-exit-dashboard>
+              <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 12H5M11 6l-6 6 6 6"/>
+              </svg>
+              Back to site
+            </button>
+            <button class="menu-item" type="button" id="dashSignOut">
+              <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l4-4-4-4M14 12H3"/>
+              </svg>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main" id="dashMain">
+      <section id="dash-overview" aria-labelledby="dashGreeting">
+        <div class="app-intro">
+          <div>
+            <p class="eyebrow" style="font-size:10px">Patient dashboard</p>
+            <h1 id="dashGreeting" tabindex="-1"><span id="dashGreetingText">Morning</span>, <span id="dashPatientFirst">Maya</span>.</h1>
+            <p>Your live signal, potassium and the next two hours in one view.</p>
+          </div>
+          <div class="app-intro__actions">
+            <button class="btn btn-primary" id="logKBtn" type="button">
+              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+              </svg>
+              Log potassium
+            </button>
+            <button class="btn btn-outline" id="symptomBtn" type="button">Check symptoms</button>
+          </div>
+        </div>
+        <div class="demo-strip">
+          <span class="tag">Demo · simulated</span>
+          <span>Sample readings for Maya Roberts. Not a medical device or a diagnosis.</span>
+        </div>
+      </section>
+
+      <div class="app-grid">
+        <div class="app-col">
+          <article class="db-card card-ecg" id="dash-live" aria-labelledby="liveTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="liveTitle">Live ECG</h2>
+                <p class="db-sub">Lead I · streaming from your sensor</p>
+              </div>
+              <button class="mini-btn" id="ecgPause" type="button" aria-pressed="false">
+                <svg class="od-icon js-pause-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M8 5v14M16 5v14"/>
+                </svg>
+                <svg class="od-icon" id="ecgPlayIcon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden>
+                  <path d="M8 5.5v13l10-6.5-10-6.5Z"/>
+                </svg>
+                <span id="ecgPauseLabel">Pause</span>
+              </button>
+            </header>
+
+            <div class="ecg-monitor" id="ecgMonitor">
+              <div class="ecg-bar">
+                <span class="ecg-bar__live"><span class="live-dot"></span><span id="ecgState">Live</span></span>
+                <span>25 mm/s · 10 mm/mV · 98% signal</span>
+              </div>
+              <svg class="ecg-canvas" viewBox="0 0 900 200" preserveAspectRatio="none" role="img" aria-label="Simulated single-lead ECG trace at 86 beats per minute">
+                <defs>
+                  <path id="dashBeat" d="M0 100H18Q24 92 30 100H44L48 105L54 40L61 158L67 100H82Q94 86 106 100H150"/>
+                </defs>
+                <g class="ecg-scroll">
+                  <use href="#dashBeat" class="ecg-trace-main" x="0"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="150"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="300"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="450"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="600"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="750"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="900"/>
+                  <use href="#dashBeat" class="ecg-trace-main" x="1050"/>
+                </g>
+              </svg>
+            </div>
+
+            <div class="ecg-readouts">
+              <div class="ecg-metric ecg-metric--primary">
+                <span class="ecg-metric__label">Heart rate</span>
+                <span class="ecg-metric__value">86<span class="ecg-metric__unit">bpm</span></span>
+                <span class="ecg-metric__note">Baseline 84–90</span>
+              </div>
+              <div class="ecg-metric">
+                <span class="ecg-metric__label">HRV · RMSSD</span>
+                <span class="ecg-metric__value">31<span class="ecg-metric__unit">ms</span></span>
+                <span class="ecg-metric__note ecg-metric__note--warn">Low for your baseline</span>
+              </div>
+              <div class="ecg-metric">
+                <span class="ecg-metric__label">QTc</span>
+                <span class="ecg-metric__value">458<span class="ecg-metric__unit">ms</span></span>
+                <span class="ecg-metric__note">Upper range · monitoring</span>
+              </div>
+              <div class="ecg-metric">
+                <span class="ecg-metric__label">LF/HF</span>
+                <span class="ecg-metric__value">3.4</span>
+                <span class="ecg-metric__note ecg-metric__note--warn">Sympathetic shift</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="db-card card-vitals" id="dash-vitals" aria-labelledby="vitalsTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="vitalsTitle">Other vitals</h2>
+                <p class="db-sub">Sensor averages · last 10 minutes</p>
+              </div>
+              <span class="tag">Live</span>
+            </header>
+            <div class="vitals-grid">
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">SpO₂</span><span class="vital-tile__flag" id="tileSpo2Flag">Normal</span></div>
+                <span class="vital-tile__value"><span class="vital-spo2-val">97</span><span class="vital-tile__unit">%</span></span>
+                <p class="vital-tile__note" id="tileSpo2Note">Galaxy Watch FE</p>
+              </div>
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">Respiration</span><span class="vital-tile__flag">Steady</span></div>
+                <span class="vital-tile__value">15<span class="vital-tile__unit">/min</span></span>
+                <p class="vital-tile__note">Within your range</p>
+              </div>
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">Skin temp</span><span class="vital-tile__flag" id="tileTempFlag">Stable</span></div>
+                <span class="vital-tile__value"><span class="vital-temp-val">36.7</span><span class="vital-tile__unit">°C</span></span>
+                <p class="vital-tile__note" id="tileTempNote">Galaxy Watch FE</p>
+              </div>
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">Sleep</span><span class="vital-tile__flag vital-tile__flag--warn">Low</span></div>
+                <span class="vital-tile__value">5<span class="vital-tile__unit">h 12 m</span></span>
+                <p class="vital-tile__note">Below your 7 h target</p>
+              </div>
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">Hydration</span><span class="vital-tile__flag vital-tile__flag--warn" id="vitalsHydrationFlag">Behind</span></div>
+                <span class="vital-tile__value"><span id="vitalsHydrationValue">1.4</span><span class="vital-tile__unit"> / 2.5 L</span></span>
+                <div class="hydration-mini" aria-hidden="true"><i id="vitalsHydrationFill" style="width:56%"></i></div>
+              </div>
+              <div class="vital-tile">
+                <div class="vital-tile__top"><span class="vital-tile__label">Weight</span><span class="vital-tile__flag">Stable</span></div>
+                <span class="vital-tile__value">64.2<span class="vital-tile__unit">kg</span></span>
+                <p class="vital-tile__note">No change in 7 days</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="db-card card-trends" id="dash-trends" aria-labelledby="trendTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="trendTitle">Autonomic trend</h2>
+                <p class="db-sub">Heart rate and HRV against your own baseline</p>
+              </div>
+              <div class="trend-controls">
+                <div class="range-tabs" role="group" aria-label="Trend range">
+                  <button class="range-tab" type="button" data-range="24h" aria-pressed="true">24 h</button>
+                  <button class="range-tab" type="button" data-range="7d" aria-pressed="false">7 d</button>
+                  <button class="range-tab" type="button" data-range="14d" aria-pressed="false">14 d</button>
+                </div>
+              </div>
+            </header>
+            <div class="trend-wrap">
+              <svg id="trendChart" viewBox="0 0 720 220" role="img" aria-label="Heart rate and HRV trend over the last 24 hours"></svg>
+            </div>
+            <div class="trend-legend">
+              <span><i class="legend-line"></i>Heart rate (bpm)</span>
+              <span><i class="legend-line legend-line--hrv"></i>HRV, RMSSD (ms)</span>
+            </div>
+            <p class="trend-foot" id="trendFoot">Events: high-carb meal 19:40 · risk alert 04:12</p>
+          </article>
+
+          <article class="db-card card-plan" id="dash-plan" aria-labelledby="planTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="planTitle">Today’s care plan</h2>
+                <p class="db-sub">Small actions that keep potassium steady</p>
+              </div>
+              <span class="plan-progress" id="planProgress">1 of 3 done</span>
+            </header>
+            <div class="plan-list">
+              <div class="plan-row">
+                <input type="checkbox" id="taskK" checked>
+                <div class="plan-row__body">
+                  <label class="plan-row__name is-done" id="taskKLabel" for="taskK">Morning potassium</label>
+                  <p class="plan-row__meta">Potassium chloride ER 20 mEq · 08:00</p>
+                </div>
+                <span class="plan-row__tag" id="taskKTag">Taken</span>
+              </div>
+              <div class="plan-row">
+                <input type="checkbox" id="taskDose">
+                <div class="plan-row__body">
+                  <label class="plan-row__name" id="taskDoseLabel" for="taskDose">Evening dose</label>
+                  <p class="plan-row__meta">As prescribed · around 20:00</p>
+                </div>
+                <span class="plan-row__tag" id="taskDoseTag">Due</span>
+              </div>
+            </div>
+            <div class="hydration-block">
+              <div class="hydration-head">
+                <span>Hydration</span>
+                <strong id="hydrationValue" aria-live="polite">1.4 / 2.5 L</strong>
+              </div>
+              <div class="hydration-bar" id="hydrationBar" role="progressbar" aria-label="Hydration" aria-valuemin="0" aria-valuemax="2.5" aria-valuenow="1.4">
+                <i id="hydrationFill" style="width:56%"></i>
+              </div>
+              <div class="hydration-foot">
+                <span>Sip steadily · avoid large carb-heavy meals.</span>
+                <button class="mini-btn" id="addWater" type="button">+250 ml</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="db-card card-history" id="dash-history" aria-labelledby="historyTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="historyTitle">Recent alerts</h2>
+                <p class="db-sub">Acknowledged alerts stay here for your clinician</p>
+              </div>
+              <span class="tag" id="alertCount">1 open</span>
+            </header>
+            <div class="alert-list" id="alertList"></div>
+          </article>
+        </div>
+
+        <div class="app-col">
+          <article class="db-card risk-panel card-risk" id="dash-risk" data-level="elevated" aria-labelledby="riskTitle">
+            <div class="risk-top">
+              <div>
+                <h2 class="db-title" id="riskTitle">Attack probability</h2>
+                <p class="db-sub">Next 2 hours</p>
+              </div>
+              <span class="risk-chip" id="riskChip">Elevated</span>
+            </div>
+
+            <div class="gauge gauge--lg risk-gauge is-in" id="riskGauge" style="--risk:.62" role="img" aria-label="Attack probability 62 percent, elevated">
+              <svg class="gauge__svg" viewBox="0 0 140 140" aria-hidden="true">
+                <circle class="gauge__track" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+                <circle class="gauge__arc" cx="70" cy="70" r="58" transform="rotate(-90 70 70)"/>
+              </svg>
+              <div class="gauge__center">
+                <span><span class="gauge__num" id="riskValue">62</span><span class="gauge__pct">%</span></span>
+                <span class="gauge__cap">2 h risk</span>
+              </div>
+            </div>
+
+            <div class="risk-meta">
+              <p class="risk-status" id="riskStatus" aria-live="polite">Above your 7-day median</p>
+              <p class="risk-delta" id="riskDelta">Model confidence 86% · updated just now</p>
+            </div>
+
+            <ul class="risk-factors" id="riskFactors"></ul>
+            <p class="risk-note">Estimate from potassium, HRV, sleep and your trigger log. It is not a diagnosis.</p>
+          </article>
+
+          <article class="db-card card-k" id="dash-potassium" aria-labelledby="kTitle">
+            <div class="k-top">
+              <div>
+                <h2 class="db-title" id="kTitle">Potassium</h2>
+                <p class="db-sub">Latest logged reading</p>
+              </div>
+              <span class="k-chip" id="kStatusChip">Below range</span>
+            </div>
+            <div class="k-figure"><strong id="kValue">3.3</strong><span>mmol/L</span></div>
+            <p class="db-sub" id="kMeta">Range 3.5–5.1 · logged 04:12</p>
+            <div class="k-chart">
+              <svg id="kChart" viewBox="0 0 360 132" role="img" aria-label="Potassium over the last 14 days, currently 3.3 millimoles per litre"></svg>
+            </div>
+            <div class="k-last"><span>14-day trend</span><span>Target ≥ 3.5</span></div>
+            <div class="k-readings" id="kReadings"></div>
+            <div class="k-actions">
+              <button class="btn btn-outline btn-block" id="logKCard" type="button">Log a reading</button>
+            </div>
+          </article>
+
+          <article class="db-card card-triggers" id="dash-triggers" aria-labelledby="triggersTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="triggersTitle">What’s driving risk</h2>
+                <p class="db-sub">Toggle today’s triggers to update the estimate</p>
+              </div>
+            </header>
+            <div class="triggers">
+              <label class="trigger">
+                <input type="checkbox" data-trigger="meal" checked>
+                <span class="trigger__text">
+                  <span class="trigger__name">High-carb meal</span>
+                  <span class="trigger__help">Carb-heavy dinner within 4 h</span>
+                </span>
+                <span class="trigger__pts">+8</span>
+              </label>
+              <label class="trigger">
+                <input type="checkbox" data-trigger="sleep" checked>
+                <span class="trigger__text">
+                  <span class="trigger__name">Short sleep</span>
+                  <span class="trigger__help">5 h 12 m · below your 7 h target</span>
+                </span>
+                <span class="trigger__pts">+6</span>
+              </label>
+              <label class="trigger">
+                <input type="checkbox" data-trigger="dose">
+                <span class="trigger__text">
+                  <span class="trigger__name">Missed dose</span>
+                  <span class="trigger__help">Evening potassium not taken</span>
+                </span>
+                <span class="trigger__pts">+7</span>
+              </label>
+              <label class="trigger">
+                <input type="checkbox" data-trigger="cold">
+                <span class="trigger__text">
+                  <span class="trigger__name">Cold exposure</span>
+                  <span class="trigger__help">Chilly room or cold shower</span>
+                </span>
+                <span class="trigger__pts">+4</span>
+              </label>
+              <label class="trigger">
+                <input type="checkbox" data-trigger="exercise">
+                <span class="trigger__text">
+                  <span class="trigger__name">Hard exercise</span>
+                  <span class="trigger__help">Strenuous activity, then rest</span>
+                </span>
+                <span class="trigger__pts">+5</span>
+              </label>
+            </div>
+            <p class="trigger-foot">Updates immediately · nothing is sent to your care team.</p>
+          </article>
+
+          <article class="db-card card-care" id="dash-care" aria-labelledby="careTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="careTitle">Care circle</h2>
+                <p class="db-sub">People on call if something changes</p>
+              </div>
+            </header>
+            <div class="care-list">
+              <div class="care-row">
+                <span class="care-avatar" aria-hidden="true">AR</span>
+                <span class="od-stack" style="--od-gap:0">
+                  <span class="care-name">Dr. Anaya Rao</span>
+                  <span class="care-role">Endocrinologist</span>
+                </span>
+                <span class="care-status">On call</span>
+              </div>
+              <div class="care-row">
+                <span class="care-avatar" aria-hidden="true">PN</span>
+                <span class="od-stack" style="--od-gap:0">
+                  <span class="care-name">Priya Nair</span>
+                  <span class="care-role">TPP nurse</span>
+                </span>
+                <span class="care-status">Online</span>
+              </div>
+              <div class="care-row">
+                <span class="care-avatar" aria-hidden="true">AS</span>
+                <span class="od-stack" style="--od-gap:0">
+                  <span class="care-name">Arjun Shah</span>
+                  <span class="care-role">Partner · notified</span>
+                </span>
+                <span class="care-status">Nearby</span>
+              </div>
+            </div>
+            <div class="care-actions">
+              <button class="btn btn-outline btn-block" id="messageBtn" type="button">
+                <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12a8 8 0 0 1-8 8H8l-4 2.5V18a8 8 0 1 1 17-6Z"/>
+                </svg>
+                Message care team
+              </button>
+            </div>
+            <p class="care-last" id="careLast">Dr. Anaya Rao replies within about an hour.</p>
+          </article>
+
+          <article class="db-card safety-card card-safety" id="dash-safety" aria-labelledby="safetyTitle">
+            <header class="db-head">
+              <div>
+                <h2 class="db-title" id="safetyTitle">If weakness starts</h2>
+                <p class="db-sub">Follow your personal care plan</p>
+              </div>
+            </header>
+            <ol class="safety-list">
+              <li><span class="safety-num">01</span>Stop activity and sit or lie down somewhere safe.</li>
+              <li><span class="safety-num">02</span>Follow your prescribed potassium plan — do not take extra on your own.</li>
+              <li><span class="safety-num">03</span>Call your care team. Use emergency services if breathing or swallowing is affected.</li>
+            </ol>
+            <p class="safety-note">Demo guidance only. Your clinician’s instructions replace this card.</p>
+          </article>
+        </div>
+      </div>
+
+      <footer class="app-foot">
+        <span>NuraSesne · demo prototype</span>
+        <span>Simulated readings. Not for diagnosis or treatment decisions.</span>
+      </footer>
+    </main>
+
+    <nav class="app-tabbar" aria-label="Dashboard">
+      <button class="app-tab is-active" type="button" data-dash-target="dash-overview" aria-current="location">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>
+        </svg>
+        <span>Overview</span>
+      </button>
+      <button class="app-tab" type="button" data-dash-target="dash-live">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12h4l2.4-5.8 4.1 11.6L16 12h5"/>
+        </svg>
+        <span>Signal</span>
+      </button>
+      <button class="app-tab" type="button" data-dash-target="dash-potassium">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3.2s6 6.3 6 10.3a6 6 0 0 1-12 0c0-4 6-10.3 6-10.3Z"/>
+        </svg>
+        <span>Potassium</span>
+      </button>
+      <button class="app-tab" type="button" data-dash-target="dash-history">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5"/><path d="M12 7.6V12l3 1.8"/>
+        </svg>
+        <span>History</span>
+      </button>
+      <button class="app-tab" type="button" data-dash-target="dash-care">
+        <svg class="od-icon" style="--od-icon-size:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="9.5" cy="8" r="3.3"/><path d="M3.5 19v-1.4A3.6 3.6 0 0 1 7.1 14h4.8a3.6 3.6 0 0 1 3.6 3.6V19M16.6 5.1a3.3 3.3 0 0 1 0 5.8M18 14.2a3.6 3.6 0 0 1 2.5 3.4V19"/>
+        </svg>
+        <span>Care</span>
+      </button>
+    </nav>
+  </div>
+</div>
+
+<dialog id="loginDialog" aria-labelledby="loginTitle">
+  <div class="dialog-card">
+    <button class="dialog-close" id="dialogClose" type="button" aria-label="Close sign-in">
+      <svg class="od-icon" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+
+    <div id="loginPanel">
+      <p class="dialog-eyebrow">Patient access</p>
+      <h2 class="dialog-title" id="loginTitle">Sign in</h2>
+      <p class="dialog-sub">Reach your live signal, baseline and care circle.</p>
+
+      <button class="btn btn-google btn-block" id="googleBtn" type="button" style="margin-top: var(--s5)">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        <span id="googleLabel">Continue with Google</span>
+        <span class="spinner spinner--dark" id="googleSpinner" hidden aria-hidden="true"></span>
+      </button>
+
+      <div class="auth-divider">or sign in with email</div>
+
+      <form id="loginForm" novalidate>
+        <div class="form-field">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="email" inputmode="email" aria-describedby="emailError" required>
+          <p class="field-error" id="emailError" hidden></p>
+        </div>
+
+        <div class="form-field">
+          <label for="password">Password</label>
+          <div class="password-wrap">
+            <input id="password" name="password" type="password" autocomplete="current-password" aria-describedby="passwordError" required>
+            <button class="password-toggle" id="passwordToggle" type="button" aria-label="Show password" aria-pressed="false">
+              <svg class="od-icon js-eye-open" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>
+              </svg>
+              <svg class="od-icon js-eye-closed" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                <path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 4l16 16"/>
+              </svg>
+            </button>
+          </div>
+          <p class="field-error" id="passwordError" hidden></p>
+        </div>
+
+        <div class="form-row">
+          <input type="checkbox" id="remember" name="remember" checked>
+          <label for="remember">Remember this device</label>
+        </div>
+
+        <button class="btn btn-primary btn-block" id="submitBtn" type="submit">
+          <span id="submitLabel">Sign in</span>
+          <span class="spinner" id="spinner" hidden aria-hidden="true"></span>
+        </button>
+      </form>
+
+      <p class="demo-hint">
+        Preview build — email and Google sign-in are simulated and nothing is sent.
+        <span class="demo-cred">patient@nurasense.app · nura-demo</span>
+        <button class="link-btn" id="demoBtn" type="button">Use demo access</button>
+      </p>
+    </div>
+
+    <div id="successPanel" hidden>
+      <span class="success-mark">
+        <svg class="od-icon" style="--od-icon-size:26px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m5 12.5 4.5 4.5L19 7.5"/>
+        </svg>
+      </span>
+      <h2 class="dialog-title" id="successTitle" tabindex="-1">You're signed in</h2>
+      <p class="dialog-sub">Signed in as <strong id="whoami">Maya Roberts</strong>. Your live dashboard is ready.</p>
+      <div class="success-actions">
+        <button class="btn btn-primary btn-block" id="doneBtn" type="button">Open dashboard</button>
+        <button class="link-btn" id="signOutBtn" type="button">Sign out</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="kDialog" aria-labelledby="kDialogTitle">
+  <div class="dialog-card">
+    <button class="dialog-close" id="kDialogClose" type="button" aria-label="Close potassium reading">
+      <svg class="od-icon" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+    <p class="dialog-eyebrow">Potassium</p>
+    <h2 class="dialog-title" id="kDialogTitle">Log a reading</h2>
+    <p class="dialog-sub">Enter the value from your meter. The attack estimate updates immediately.</p>
+
+    <form id="kForm" class="dash-form" novalidate style="margin-top: 18px">
+      <div class="form-field">
+        <label for="kInput">Potassium (mmol/L)</label>
+        <input id="kInput" name="potassium" type="number" inputmode="decimal" step="0.1" min="2.5" max="7" placeholder="3.3" aria-describedby="kHelp kError">
+        <p class="field-help" id="kHelp">Typical range 3.5–5.1 mmol/L.</p>
+        <p class="field-error" id="kError" hidden></p>
+      </div>
+      <div class="k-time-row">
+        <div class="form-field">
+          <label for="kTime">Time</label>
+          <input id="kTime" name="time" type="time">
+        </div>
+        <div class="form-field">
+          <label for="kContext">Context</label>
+          <select id="kContext" name="context">
+            <option>Morning</option>
+            <option>After a meal</option>
+            <option>Fasting</option>
+            <option>Evening</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Save reading</button>
+      <p class="demo-hint">Demo entry — stored only in this preview session.</p>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="symptomDialog" aria-labelledby="symptomDialogTitle">
+  <div class="dialog-card">
+    <button class="dialog-close" id="symptomDialogClose" type="button" aria-label="Close symptom check">
+      <svg class="od-icon" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+    <p class="dialog-eyebrow">Symptom check</p>
+    <h2 class="dialog-title" id="symptomDialogTitle">How are you feeling?</h2>
+    <p class="dialog-sub">Logging symptoms helps your care team see the full picture.</p>
+
+    <form id="symptomForm" class="dash-form" novalidate style="margin-top: 18px">
+      <div class="form-field">
+        <label for="symptomType">Main symptom</label>
+        <select id="symptomType" name="symptom">
+          <option>Muscle weakness</option>
+          <option>Cramps</option>
+          <option>Palpitations</option>
+          <option>No symptoms</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="symptomSeverity">Severity</label>
+        <div class="severity-row">
+          <input id="symptomSeverity" name="severity" type="range" min="1" max="5" step="1" value="3" aria-describedby="severityValue">
+          <span class="severity-value" id="severityValue">3 · Moderate</span>
+        </div>
+      </div>
+      <div class="form-field">
+        <label for="symptomNote">Anything else? (optional)</label>
+        <textarea id="symptomNote" name="note" maxlength="200" placeholder="e.g. Legs feel heavy after lunch"></textarea>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Log check-in</button>
+      <p class="demo-hint">Nothing is sent in this preview; the entry stays on this device.</p>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="messageDialog" aria-labelledby="messageDialogTitle">
+  <div class="dialog-card">
+    <button class="dialog-close" id="messageDialogClose" type="button" aria-label="Close message">
+      <svg class="od-icon" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+    <p class="dialog-eyebrow">Care circle</p>
+    <h2 class="dialog-title" id="messageDialogTitle">Send a message</h2>
+    <p class="dialog-sub">Tell your care team what has changed. In a real build this reaches them directly.</p>
+
+    <form id="messageForm" class="dash-form" novalidate style="margin-top: 18px">
+      <div class="form-field">
+        <label for="messageTo">To</label>
+        <select id="messageTo" name="recipient">
+          <option>Dr. Anaya Rao · Endocrinologist</option>
+          <option>Priya Nair · TPP nurse</option>
+          <option>Arjun Shah · Partner</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="messageText">Message</label>
+        <textarea id="messageText" name="message" maxlength="400" placeholder="e.g. My legs feel weak after lunch and my potassium was 3.3 this morning." aria-describedby="messageHelp messageError"></textarea>
+        <p class="field-help" id="messageHelp">Demo message — nothing leaves this preview.</p>
+        <p class="field-error" id="messageError" hidden></p>
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Send message</button>
+    </form>
+  </div>
+</dialog>
+
+<div class="app-toast" id="appToast" role="status" aria-live="polite" hidden>
+  <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="m5 12.5 4.5 4.5L19 7.5"/>
+  </svg>
+  <span id="appToastText"></span>
+</div>
+
+<script type="module" src="/src/scripts/main.js"></script>
+</body>
+</html>

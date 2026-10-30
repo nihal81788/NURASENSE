@@ -1,0 +1,291 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#050811"
+    android:fillViewport="true"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <!-- Header -->
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="NURASENSE FE"
+            android:textColor="#00FF88"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- Service Status -->
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Service: Initializing..."
+            android:textColor="#94A3B8"
+            android:textSize="10sp" />
+
+        <!-- Master Toggle -->
+        <Button
+            android:id="@+id/btnStreamAll"
+            android:layout_width="match_parent"
+            android:layout_height="32dp"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#06B6D4"
+            android:text="Stream All Sensors"
+            android:textColor="#000000"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <!-- 1. Heart Rate & IBI Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#0F172A"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="HEART RATE &amp; IBI"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvHeartRate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- BPM"
+                android:textColor="#EF4444"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvIbi"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="IBI: -- ms"
+                android:textColor="#38BDF8"
+                android:textSize="10sp" />
+
+            <Button
+                android:id="@+id/btnToggleHr"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#10B981"
+                android:text="Toggle HR"
+                android:textColor="#000000"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 2. SpO2 Blood Oxygen Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#0F172A"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BLOOD OXYGEN (SpO2)"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvSpo2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- %"
+                android:textColor="#06B6D4"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSpo2Status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Idle"
+                android:textColor="#94A3B8"
+                android:textSize="10sp" />
+
+            <Button
+                android:id="@+id/btnToggleSpo2"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#0284C7"
+                android:text="Measure SpO2"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 3. Skin Temperature Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#0F172A"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SKIN TEMPERATURE"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvSkinTemp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- °C"
+                android:textColor="#F59E0B"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvAmbientTemp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ambient: -- °C"
+                android:textColor="#94A3B8"
+                android:textSize="10sp" />
+
+            <Button
+                android:id="@+id/btnToggleTemp"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#D97706"
+                android:text="Toggle Temp"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 4. 3-Axis Accelerometer Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#0F172A"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3-AXIS ACCELEROMETER"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvAccelMagnitude"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="|a|: -- m/s²"
+                android:textColor="#10B981"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvAccelAxes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="X: 0  Y: 0  Z: 0"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <Button
+                android:id="@+id/btnToggleAccel"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#059669"
+                android:text="Toggle Accel"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- 5. Sweat Loss (Running Workout Water Loss) Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:background="#0F172A"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:padding="6dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="SWEAT LOSS (WATER LOSS)"
+                android:textColor="#94A3B8"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvSweatLoss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="-- mL"
+                android:textColor="#38BDF8"
+                android:textSize="16sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvSweatStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Status: Idle (Running Workout)"
+                android:textColor="#64748B"
+                android:textSize="9sp" />
+
+            <Button
+                android:id="@+id/btnToggleSweat"
+                android:layout_width="match_parent"
+                android:layout_height="28dp"
+                android:layout_marginTop="4dp"
+                android:backgroundTint="#0284C7"
+                android:text="Track Sweat Loss"
+                android:textColor="#FFFFFF"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Ping Host PC -->
+        <Button
+            android:id="@+id/btnPing"
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="24dp"
+            android:backgroundTint="#334155"
+            android:text="Test Ping Host"
+            android:textColor="#E2E8F0"
+            android:textSize="9sp" />
+
+    </LinearLayout>
+</ScrollView>

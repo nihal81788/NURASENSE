@@ -1,0 +1,25 @@
+{
+  "name": "nurasense-frontend",
+  "version": "1.0.0",
+  "description": "NuraSense — Real-time ECG Early Warning System for Thyrotoxic Periodic Paralysis (TPP)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "nurasense",
+    "ecg",
+    "tpp",
+    "telemetry",
+    "medical",
+    "responsive",
+    "frontend"
+  ],
+  "author": "NuraSense Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

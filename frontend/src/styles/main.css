@@ -1,0 +1,80 @@
+/**
+ * NuraSense — Core Stylesheet Index
+ * High-performance, modular, modern CSS architecture
+ */
+
+@import './tokens.css';
+@import './header.css';
+@import './hero.css';
+@import './sections.css';
+@import './dialogs.css';
+@import './dashboard.css';
+@import './responsive.css';
+
+/* Mobile Navigation Drawer Enhancements */
+.mobile-nav-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--ink);
+  align-items: center;
+  justify-content: center;
+  transition: all 180ms var(--ease-out);
+}
+
+.mobile-nav-toggle:hover {
+  background: var(--surface);
+  border-color: var(--petrol);
+}
+
+.mobile-nav-drawer {
+  position: fixed;
+  top: 74px;
+  left: 0;
+  right: 0;
+  background: rgba(246, 248, 248, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--line);
+  padding: var(--s4) var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  z-index: 39;
+  transform: translateY(-110%);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 260ms var(--ease-out), opacity 260ms var(--ease-out);
+  box-shadow: 0 16px 32px rgba(7, 38, 40, 0.08);
+}
+
+.mobile-nav-drawer.is-open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-nav-drawer a {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--ink-2);
+  text-decoration: none;
+  padding: 10px 14px;
+  border-radius: var(--radius-s);
+  transition: background 160ms var(--ease-out), color 160ms var(--ease-out);
+}
+
+.mobile-nav-drawer a:hover,
+.mobile-nav-drawer a:active {
+  background: var(--mint);
+  color: var(--petrol-deep);
+}
+
+@media (max-width: 1040px) {
+  .mobile-nav-toggle {
+    display: inline-flex;
+  }
+}

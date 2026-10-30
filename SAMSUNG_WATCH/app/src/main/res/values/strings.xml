@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Galaxy Stream</string>
+    <string name="service_disconnected">Service: Disconnected</string>
+    <string name="service_connected">Service: Connected</string>
+    <string name="hr_label">HR: -- BPM</string>
+    <string name="ibi_label">IBI: -- ms</string>
+    <string name="ecg_idle">ECG: Idle</string>
+    <string name="btn_start_hr">Start HR Stream</string>
+    <string name="btn_stop_hr">Stop HR</string>
+    <string name="btn_start_ecg">Start ECG (500Hz)</string>
+    <string name="btn_stop_ecg">Stop ECG</string>
+    <string name="ecg_hint">Touch top button for ECG</string>
+</resources>
+

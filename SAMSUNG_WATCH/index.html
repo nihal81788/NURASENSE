@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NuraSense — Galaxy Watch FE Biometrics (Sweat Loss & Vital Signs)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-base: #030712;
+            --bg-surface: #0b1324;
+            --bg-card: rgba(15, 23, 42, 0.75);
+            --border-subtle: rgba(56, 189, 248, 0.12);
+            --border-focus: rgba(56, 189, 248, 0.35);
+
+            --accent-cyan: #38bdf8;
+            --accent-green: #10b981;
+            --accent-red: #f43f5e;
+            --accent-amber: #f59e0b;
+            --accent-purple: #a855f7;
+            --accent-blue: #0284c7;
+
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+
+            --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 10%, rgba(2, 132, 199, 0.08) 0%, transparent 35%),
+                radial-gradient(circle at 85% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+        }
+
+        /* Top Navigation Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 28px;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-subtle);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand-logo {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #000;
+            box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+        }
+
+        .brand-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .brand-title span {
+            color: var(--accent-cyan);
+            font-weight: 500;
+        }
+
+        .badge-device {
+            font-size: 0.72rem;
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent-cyan);
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+            font-weight: 600;
+        }
+
+        .status-strip {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .btn-sim {
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-sim:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--accent-cyan);
+        }
+
+        .conn-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-subtle);
+            font-size: 0.75rem;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .conn-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            box-shadow: 0 0 8px #ef4444;
+        }
+
+        .conn-dot.online {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .conn-dot.reconnecting {
+            background: #f59e0b;
+            box-shadow: 0 0 8px #f59e0b;
+        }
+
+        /* Layout Container */
+        main {
+            max-width: 1380px;
+            margin: 0 auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        /* Metric Cards Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: var(--border-focus);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .card-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+        }
+
+        .card-icon.red { background: rgba(244, 63, 94, 0.15); color: var(--accent-red); }
+        .card-icon.cyan { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); }
+        .card-icon.blue { background: rgba(2, 132, 199, 0.15); color: #38bdf8; }
+        .card-icon.amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+        .card-icon.green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); }
+        .card-icon.purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); }
+
+        .card-body {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+
+        .metric-val {
+            font-size: 2.2rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            letter-spacing: -0.04em;
+            line-height: 1;
+        }
+
+        .metric-unit {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            padding-top: 8px;
+        }
+
+        .badge-status {
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.65rem;
+        }
+
+        .badge-status.normal { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+        .badge-status.elevated { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+        .badge-status.warning { background: rgba(244, 63, 94, 0.12); color: #f43f5e; }
+
+        /* Hydration & Sweat Loss Panel */
+        .sweat-panel {
+            background: linear-gradient(145deg, rgba(11, 19, 36, 0.85) 0%, rgba(15, 23, 42, 0.7) 100%);
+            border: 1px solid rgba(2, 132, 199, 0.25);
+            border-radius: 16px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .sweat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+            padding-bottom: 14px;
+        }
+
+        .sweat-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sweat-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tag-workout {
+            font-size: 0.72rem;
+            background: rgba(2, 132, 199, 0.15);
+            color: #38bdf8;
+            padding: 3px 9px;
+            border-radius: 12px;
+            border: 1px solid rgba(2, 132, 199, 0.3);
+            font-weight: 600;
+        }
+
+        .sweat-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1.5fr 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        @media (max-width: 960px) {
+            .sweat-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Big Water Loss Gauge Box */
+        .water-loss-gauge-box {
+            background: rgba(3, 7, 18, 0.5);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .water-loss-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .water-loss-number {
+            font-size: 3.2rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            color: #38bdf8;
+            letter-spacing: -0.04em;
+            line-height: 1;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.4);
+        }
+
+        .water-loss-number span {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .water-sub-stats {
+            display: flex;
+            gap: 12px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            margin-top: 4px;
+        }
+
+        .rehydration-target {
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 8px;
+            font-size: 0.75rem;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Hydration Risk Meter */
+        .dehydration-meter-box {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 10px;
+        }
+
+        .meter-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .meter-bar-container {
+            width: 100%;
+            height: 16px;
+            background: rgba(15, 23, 42, 0.8);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+        }
+
+        .meter-bar-fill {
+            height: 100%;
+            width: 15%;
+            background: linear-gradient(90deg, #10b981 0%, #38bdf8 45%, #f59e0b 75%, #f43f5e 100%);
+            border-radius: 10px;
+            transition: width 0.4s ease;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+        }
+
+        .meter-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+        }
+
+        .hydration-status-desc {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            background: rgba(15, 23, 42, 0.5);
+            padding: 10px 14px;
+            border-radius: 8px;
+            border-left: 3px solid #38bdf8;
+        }
+
+        /* Electrolyte Loss Box */
+        .electrolyte-box {
+            background: rgba(3, 7, 18, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .electrolyte-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.78rem;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+            padding-bottom: 6px;
+        }
+
+        .electrolyte-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .electrolyte-val {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        /* Accelerometer Oscilloscope Panel */
+        .oscilloscope-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .panel-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .rate-badge {
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(16, 185, 129, 0.12);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+            font-family: var(--font-mono);
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            height: 180px;
+            background: #050811;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.12);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .overlay-banner {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            display: flex;
+            gap: 14px;
+            font-size: 0.65rem;
+            font-family: var(--font-mono);
+            color: var(--text-dim);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        /* Bottom Footer */
+        .telemetry-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 10px;
+        }
+
+        .telemetry-item span {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+
+        @keyframes heartPulse {
+            0% { transform: scale(1); }
+            15% { transform: scale(1.35); }
+            30% { transform: scale(1); }
+            45% { transform: scale(1.2); }
+            60% { transform: scale(1); }
+        }
+
+        .pulsing {
+            animation: heartPulse 0.8s ease-in-out;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="brand-container">
+            <div class="brand-logo">N</div>
+            <div class="brand-title">NURASENSE <span>MULTI-MODAL</span></div>
+            <div class="badge-device">Samsung Galaxy Watch FE (Wear OS 4)</div>
+        </div>
+
+        <div class="status-strip">
+            <span id="lastPacketTicker" style="font-family: var(--font-mono); font-size: 0.72rem; color: #00ff88; padding: 4px 10px; background: rgba(0,255,136,0.08); border-radius: 20px; border: 1px solid rgba(0,255,136,0.2);">● 0 ms ago (Live)</span>
+            <button id="btnToggleSim" class="btn-sim" onclick="toggleSimulator()">Start Workout Simulation</button>
+            <div class="conn-pill">
+                <div id="connDot" class="conn-dot"></div>
+                <span id="connText">OFFLINE</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main>
+        <!-- Top Cards: 6 Full Biometric Modalities -->
+        <section class="metrics-grid">
+            <!-- 1. Heart Rate -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">Heart Rate</span>
+                    <div id="heartIcon" class="card-icon red">♥</div>
+                </div>
+                <div class="card-body">
+                    <span id="valBpm" class="metric-val" style="color: var(--accent-red);">--</span>
+                    <span class="metric-unit">BPM</span>
+                </div>
+                <div class="card-footer">
+                    <span>Source: PPG Continuous</span>
+                    <span id="bpmStateBadge" class="badge-status normal">Resting</span>
+                </div>
+            </div>
+
+            <!-- 2. RMSSD (HRV) -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">RMSSD (HRV)</span>
+                    <div class="card-icon cyan">⚡</div>
+                </div>
+                <div class="card-body">
+                    <span id="valHrv" class="metric-val" style="color: var(--accent-cyan);">--</span>
+                    <span class="metric-unit">ms</span>
+                </div>
+                <div class="card-footer">
+                    <span>Vagal Autonomic Tone</span>
+                    <span id="hrvToneBadge" class="badge-status normal">Awaiting Data</span>
+                </div>
+            </div>
+
+            <!-- 3. Sweat Loss (Running Workout Lost Water) -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">Sweat Loss</span>
+                    <div class="card-icon blue">💧</div>
+                </div>
+                <div class="card-body">
+                    <span id="valSweatTop" class="metric-val" style="color: #38bdf8;">--</span>
+                    <span class="metric-unit">mL</span>
+                </div>
+                <div class="card-footer">
+                    <span id="sweatTopSub">Lost Water Amount</span>
+                    <span id="sweatTopBadge" class="badge-status normal">Optimal</span>
+                </div>
+            </div>
+
+            <!-- 4. Blood Oxygen (SpO2) -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">Blood Oxygen (SpO2)</span>
+                    <div class="card-icon purple">🩸</div>
+                </div>
+                <div class="card-body">
+                    <span id="valSpo2" class="metric-val" style="color: #a855f7;">--</span>
+                    <span class="metric-unit">%</span>
+                </div>
+                <div class="card-footer">
+                    <span id="spo2StatusText">Sensor: Ready</span>
+                    <span id="spo2Badge" class="badge-status normal">Optimal</span>
+                </div>
+            </div>
+
+            <!-- 5. Skin Temperature -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-label">Skin Temperature</span>
+                    <div class="card-icon amber">🌡</div>
+                </div>
+                <div class="card-body">
+                    <span id="valSkinTemp" class="metric-val" style="color: var(--accent-amber);">--</span>
+                    <span class="metric-unit">°C</span>
+                </div>
+                <div class="card-footer">
+                    <span id="ambientTempText">Ambient: -- °C</span>
+                    <span id="tempBadge" class="badge-status normal">Normothermic</span>
+                </div>
+            </div>
+
+            <!-- 6. 3-Axis Accel & Tremor -->
+            <div class="card" id="cardAccel">
+                <div class="card-header">
+                    <span class="card-label">Tremor &amp; Motion</span>
+                    <div class="card-icon green">〰</div>
+                </div>
+                <div class="card-body">
+                    <span id="valAccelMag" class="metric-val" style="color: var(--accent-green);">--</span>
+                    <span id="valAccelUnit" class="metric-unit">G</span>
+                </div>
+                <div class="card-footer">
+                    <span id="accelAxesText">X: 0 Y: 0 Z: 0</span>
+                    <span id="tremorBadge" class="badge-status normal">Stationary</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Primary Center: Sweat Loss & Hydration Deficit (Running Workout Lost Water) -->
+        <section class="sweat-panel">
+            <div class="sweat-header">
+                <div class="sweat-title-group">
+                    <div class="sweat-title">
+                        <span>💧 Running Workout Water Loss &amp; Dehydration Analytics</span>
+                    </div>
+                    <span class="tag-workout">Samsung Health Sensor SDK • SWEAT_LOSS</span>
+                </div>
+                <div id="sweatWorkoutStatus" class="badge-status normal" style="font-size: 0.75rem; padding: 4px 10px;">
+                    ● Ready for Workout
+                </div>
+            </div>
+
+            <div class="sweat-grid">
+                <!-- Box 1: Large Water Loss Gauge -->
+                <div class="water-loss-gauge-box">
+                    <div class="water-loss-label">Total Water Lost During Workout</div>
+                    <div class="water-loss-number">
+                        <span id="valSweatBig">0.0</span> <span>mL</span>
+                    </div>
+                    <div class="water-sub-stats">
+                        <span>≈ <strong id="valSweatOz" style="color: #f8fafc;">0.0 oz</strong></span>
+                        <span>•</span>
+                        <span><strong id="valSweatL" style="color: #f8fafc;">0.00 L</strong></span>
+                    </div>
+                    <div class="rehydration-target">
+                        <span>🥛 Recommended Replenishment: <strong id="valReplenishTarget">0 mL</strong> (1.25× loss)</span>
+                    </div>
+                </div>
+
+                <!-- Box 2: Dehydration Meter -->
+                <div class="dehydration-meter-box">
+                    <div class="meter-title">
+                        <span>Dehydration Severity Index</span>
+                        <span id="valHydrationLevelText" style="color: #10b981;">Optimal Hydration (&lt;1% BW)</span>
+                    </div>
+                    <div class="meter-bar-container">
+                        <div id="meterBarFill" class="meter-bar-fill"></div>
+                    </div>
+                    <div class="meter-scale">
+                        <span>0 mL (Hydrated)</span>
+                        <span>350 mL (Mild)</span>
+                        <span>750 mL (Moderate)</span>
+                        <span>1200+ mL (Severe)</span>
+                    </div>
+                    <div class="hydration-status-desc" id="hydrationStatusDesc">
+                        Lost water amount calculated by Galaxy Watch PPG optical perfusion + accelerometer cadence model during running exercise. Rehydrate periodically.
+                    </div>
+                </div>
+
+                <!-- Box 3: Electrolyte Loss Breakdown -->
+                <div class="electrolyte-box">
+                    <div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; text-transform: uppercase;">
+                        Estimated Electrolyte Depletion
+                    </div>
+                    <div class="electrolyte-row">
+                        <span style="color: var(--text-muted);">Sodium (Na⁺)</span>
+                        <span id="valSodiumLoss" class="electrolyte-val">0 mg</span>
+                    </div>
+                    <div class="electrolyte-row">
+                        <span style="color: var(--text-muted);">Potassium (K⁺)</span>
+                        <span id="valPotassiumLoss" class="electrolyte-val">0 mg</span>
+                    </div>
+                    <div class="electrolyte-row">
+                        <span style="color: var(--text-muted);">Magnesium (Mg²⁺)</span>
+                        <span id="valMagnesiumLoss" class="electrolyte-val">0 mg</span>
+                    </div>
+                    <div class="electrolyte-row">
+                        <span style="color: var(--text-muted);">Replenishment</span>
+                        <span id="valGlassesReq" class="electrolyte-val" style="color: #38bdf8;">0 glasses</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Secondary Oscilloscope: 3-Axis Accelerometer & Tremor Waveform -->
+        <section class="oscilloscope-panel">
+            <div class="panel-top">
+                <div class="panel-title-group">
+                    <div class="panel-title">
+                        <span>3-Axis Motion &amp; Running Gait IMU Waveform</span>
+                        <span class="rate-badge">Continuous IMU • X / Y / Z</span>
+                    </div>
+                </div>
+                <div class="controls-group">
+                    <div class="control-item" style="font-size: 0.78rem;">
+                        <span style="color: #f43f5e; font-weight: 600;">● X (Lateral)</span>
+                        <span style="color: #10b981; font-weight: 600; margin-left: 10px;">● Y (Vertical)</span>
+                        <span style="color: #38bdf8; font-weight: 600; margin-left: 10px;">● Z (Anterior-Posterior)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="canvas-wrapper">
+                <div class="overlay-banner">
+                    <span>DYNAMIC RANGE: ±4G</span>
+                    <span>CADENCE FREQUENCY: 1.5 - 3.2 Hz</span>
+                </div>
+                <canvas id="accelCanvas"></canvas>
+            </div>
+
+            <div class="telemetry-footer">
+                <div class="telemetry-item">Watch Model: <span>Samsung Galaxy Watch FE (SM-R860)</span></div>
+                <div class="telemetry-item">Packets Ingested: <span id="statPackets">0</span></div>
+                <div class="telemetry-item">Active WebSockets: <span id="statWs">1</span></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Accelerometer Ring Buffers (X, Y, Z, 300 points)
+        const ACCEL_CAPACITY = 300;
+        const accelXBuffer = new Float32Array(ACCEL_CAPACITY);
+        const accelYBuffer = new Float32Array(ACCEL_CAPACITY);
+        const accelZBuffer = new Float32Array(ACCEL_CAPACITY);
+        let accelWritePointer = 0;
+        let accelPointsInBuffer = 0;
+
+        let totalPackets = 0;
+        let lastBpm = null;
+        let simActive = false;
+
+        // UI References
+        const connDot = document.getElementById("connDot");
+        const connText = document.getElementById("connText");
+        const heartIcon = document.getElementById("heartIcon");
+
+        // Accel Canvas
+        const accelCanvas = document.getElementById("accelCanvas");
+        const accelCtx = accelCanvas.getContext("2d", { alpha: false });
+
+        function resizeCanvases() {
+            const dpr = window.devicePixelRatio || 1;
+            const accelRect = accelCanvas.getBoundingClientRect();
+            accelCanvas.width = accelRect.width * dpr;
+            accelCanvas.height = accelRect.height * dpr;
+            accelCtx.scale(dpr, dpr);
+        }
+        window.addEventListener("resize", resizeCanvases);
+        resizeCanvases();
+
+        // WebSocket Connection
+        let ws = null;
+        let reconnectTimer = null;
+
+        function connectWebSocket() {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const host = window.location.host || "127.0.0.1:8000";
+            const wsUrl = `${proto}//${host}/ws`;
+
+            connText.innerText = "CONNECTING...";
+            connDot.className = "conn-dot reconnecting";
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                connText.innerText = "ONLINE (LIVE)";
+                connDot.className = "conn-dot online";
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handleTelemetry(msg);
+                } catch (e) {
+                    console.error("Payload parse error:", e);
+                }
+            };
+
+            ws.onclose = () => {
+                connText.innerText = "RECONNECTING";
+                connDot.className = "conn-dot reconnecting";
+                reconnectTimer = setTimeout(connectWebSocket, 2000);
+            };
+
+            ws.onerror = (err) => {
+                console.warn("[WS] Error:", err);
+                ws.close();
+            };
+        }
+
+        let lastPacketTimestamp = Date.now();
+        setInterval(() => {
+            const ticker = document.getElementById("lastPacketTicker");
+            if (!ticker) return;
+            const diff = Date.now() - lastPacketTimestamp;
+            if (diff < 1500) {
+                ticker.innerText = `● ${diff} ms ago (Streaming)`;
+                ticker.style.color = "#00ff88";
+                ticker.style.borderColor = "rgba(0,255,136,0.3)";
+            } else if (diff < 5000) {
+                ticker.innerText = `● ${(diff/1000).toFixed(1)}s ago (Slow)`;
+                ticker.style.color = "#f59e0b";
+                ticker.style.borderColor = "rgba(245,158,11,0.3)";
+            } else {
+                ticker.innerText = `○ Idle (${Math.round(diff/1000)}s)`;
+                ticker.style.color = "#94a3b8";
+                ticker.style.borderColor = "rgba(148,163,184,0.2)";
+            }
+        }, 200);
+
+        function handleTelemetry(data) {
+            lastPacketTimestamp = Date.now();
+            totalPackets++;
+            document.getElementById("statPackets").innerText = totalPackets.toLocaleString();
+
+            // 1. Heart Rate
+            if (data.heartRate && data.heartRate > 0) {
+                lastBpm = data.heartRate;
+                document.getElementById("valBpm").innerText = lastBpm;
+                triggerHeartbeatAnimation();
+
+                const badge = document.getElementById("bpmStateBadge");
+                if (lastBpm < 60) {
+                    badge.innerText = "Bradycardia";
+                    badge.className = "badge-status normal";
+                } else if (lastBpm > 100) {
+                    badge.innerText = "Tachycardia";
+                    badge.className = "badge-status warning";
+                } else {
+                    badge.innerText = "Normal Sinus";
+                    badge.className = "badge-status normal";
+                }
+            } else if (data.hr_status === -3 || data.hr_status === 0) {
+                const badge = document.getElementById("bpmStateBadge");
+                badge.innerText = "Detecting Pulse";
+                badge.className = "badge-status elevated";
+            }
+
+            // 2. RMSSD (HRV)
+            if (data.rmssd !== undefined && data.rmssd !== null) {
+                document.getElementById("valHrv").innerText = data.rmssd;
+                const hrvBadge = document.getElementById("hrvToneBadge");
+                if (data.rmssd > 50) {
+                    hrvBadge.innerText = "High Vagal (Relaxed)";
+                    hrvBadge.className = "badge-status normal";
+                } else if (data.rmssd >= 30) {
+                    hrvBadge.innerText = "Balanced Autonomic Tone";
+                    hrvBadge.className = "badge-status normal";
+                } else {
+                    hrvBadge.innerText = "Sympathetic (Workout/Fatigue)";
+                    hrvBadge.className = "badge-status elevated";
+                }
+            }
+
+            // 3. Sweat Loss (Running Workout Lost Water)
+            if (data.sweat_loss !== undefined && data.sweat_loss !== null) {
+                const sweatMl = parseFloat(data.sweat_loss);
+                document.getElementById("valSweatTop").innerText = sweatMl.toFixed(1);
+                document.getElementById("valSweatBig").innerText = sweatMl.toFixed(1);
+
+                const sweatOz = sweatMl * 0.033814;
+                const sweatL = sweatMl / 1000.0;
+                document.getElementById("valSweatOz").innerText = `${sweatOz.toFixed(1)} oz`;
+                document.getElementById("valSweatL").innerText = `${sweatL.toFixed(2)} L`;
+
+                // 1.25x fluid intake rule for athletic rehydration
+                const targetMl = Math.round(sweatMl * 1.25);
+                document.getElementById("valReplenishTarget").innerText = `${targetMl} mL`;
+
+                // Electrolytes: Na ~900 mg/L, K ~200 mg/L, Mg ~15 mg/L
+                const sodiumMg = Math.round(sweatL * 900);
+                const potassiumMg = Math.round(sweatL * 200);
+                const magnesiumMg = Math.round(sweatL * 15);
+                const glasses = (sweatMl / 250).toFixed(1);
+
+                document.getElementById("valSodiumLoss").innerText = `${sodiumMg} mg`;
+                document.getElementById("valPotassiumLoss").innerText = `${potassiumMg} mg`;
+                document.getElementById("valMagnesiumLoss").innerText = `${magnesiumMg} mg`;
+                document.getElementById("valGlassesReq").innerText = `${glasses} glasses`;
+
+                // Hydration progress bar (1200 mL = 100%)
+                const pct = Math.min(100, Math.max(5, (sweatMl / 1200) * 100));
+                document.getElementById("meterBarFill").style.width = `${pct}%`;
+
+                const levelText = document.getElementById("valHydrationLevelText");
+                const topBadge = document.getElementById("sweatTopBadge");
+                const statusDesc = document.getElementById("hydrationStatusDesc");
+
+                if (sweatMl < 300) {
+                    levelText.innerText = "Optimal Hydration (<1% Body Water)";
+                    levelText.style.color = "#10b981";
+                    topBadge.innerText = "Optimal";
+                    topBadge.className = "badge-status normal";
+                    statusDesc.innerText = "Normal hydration range during workout. Continue steady running pace.";
+                } else if (sweatMl < 750) {
+                    levelText.innerText = "Moderate Dehydration (1–2% Loss)";
+                    levelText.style.color = "#f59e0b";
+                    topBadge.innerText = "Replenish";
+                    topBadge.className = "badge-status elevated";
+                    statusDesc.innerText = "Electrolyte depletion active. Sip water or electrolyte drink to maintain cardiac output.";
+                } else {
+                    levelText.innerText = "Severe Dehydration Risk (>2% Loss)";
+                    levelText.style.color = "#f43f5e";
+                    topBadge.innerText = "High Loss!";
+                    topBadge.className = "badge-status warning";
+                    statusDesc.innerText = "Core body temperature elevation & muscle cramp risk. Immediate hydration recommended.";
+                }
+
+                const workoutBadge = document.getElementById("sweatWorkoutStatus");
+                if (data.sweat_status === 0) {
+                    workoutBadge.innerText = "● Running Workout Active";
+                    workoutBadge.className = "badge-status normal";
+                } else {
+                    workoutBadge.innerText = "● Workout Tracking";
+                    workoutBadge.className = "badge-status normal";
+                }
+            }
+
+            // 4. SpO2 Blood Oxygen
+            if (data.spo2 && data.spo2 > 0) {
+                document.getElementById("valSpo2").innerText = data.spo2;
+                const spo2Badge = document.getElementById("spo2Badge");
+                if (data.spo2 >= 95) {
+                    spo2Badge.innerText = "Optimal (95-100%)";
+                    spo2Badge.className = "badge-status normal";
+                } else if (data.spo2 >= 90) {
+                    spo2Badge.innerText = "Borderline (90-94%)";
+                    spo2Badge.className = "badge-status elevated";
+                } else {
+                    spo2Badge.innerText = "Hypoxemia (<90%)";
+                    spo2Badge.className = "badge-status warning";
+                }
+                document.getElementById("spo2StatusText").innerText = "Sensor: Active";
+            }
+
+            // 5. Skin Temperature
+            if (data.skin_temp !== undefined && data.skin_temp !== null) {
+                document.getElementById("valSkinTemp").innerText = data.skin_temp.toFixed(1);
+                const tempBadge = document.getElementById("tempBadge");
+                if (data.skin_temp < 32.0) {
+                    tempBadge.innerText = "Peripheral Cooling";
+                    tempBadge.className = "badge-status elevated";
+                } else if (data.skin_temp > 36.5) {
+                    tempBadge.innerText = "Elevated Temp";
+                    tempBadge.className = "badge-status warning";
+                } else {
+                    tempBadge.innerText = "Normothermic";
+                    tempBadge.className = "badge-status normal";
+                }
+            }
+            if (data.ambient_temp !== undefined && data.ambient_temp !== null) {
+                document.getElementById("ambientTempText").innerText = `Ambient: ${data.ambient_temp.toFixed(1)} °C`;
+            }
+
+            // 6. 3-Axis Accelerometer & Tremor
+            if (data.accel) {
+                const a = data.accel;
+                const rawMag = a.magnitude || 0;
+                const magG = rawMag > 50 ? (rawMag / 1000.0) : rawMag;
+                const magMs2 = magG * 9.80665;
+                document.getElementById("valAccelMag").innerText = magG.toFixed(2);
+                const unitEl = document.getElementById("valAccelUnit");
+                if (unitEl) unitEl.innerText = `G (${magMs2.toFixed(1)} m/s²)`;
+
+                const axG = (a.x > 50 || a.x < -50) ? (a.x / 1000.0).toFixed(2) : a.x;
+                const ayG = (a.y > 50 || a.y < -50) ? (a.y / 1000.0).toFixed(2) : a.y;
+                const azG = (a.z > 50 || a.z < -50) ? (a.z / 1000.0).toFixed(2) : a.z;
+                document.getElementById("accelAxesText").innerText = `X:${axG} Y:${ayG} Z:${azG}`;
+
+                const tremorBadge = document.getElementById("tremorBadge");
+                const rawTremor = a.tremor_rms || 0.0;
+                const normTremor = rawTremor > 50 ? (rawTremor / 1000.0) : rawTremor;
+                if (normTremor > 0.8) {
+                    tremorBadge.innerText = `Running Gait (${normTremor.toFixed(2)}G)`;
+                    tremorBadge.className = "badge-status warning";
+                } else if (normTremor > 0.15) {
+                    tremorBadge.innerText = `Cadence Active (${normTremor.toFixed(2)}G)`;
+                    tremorBadge.className = "badge-status elevated";
+                } else {
+                    tremorBadge.innerText = "Stationary";
+                    tremorBadge.className = "badge-status normal";
+                }
+
+                // Push to Accel Ring Buffer
+                accelXBuffer[accelWritePointer] = a.x || 0;
+                accelYBuffer[accelWritePointer] = a.y || 0;
+                accelZBuffer[accelWritePointer] = a.z || 0;
+                accelWritePointer = (accelWritePointer + 1) % ACCEL_CAPACITY;
+                if (accelPointsInBuffer < ACCEL_CAPACITY) accelPointsInBuffer++;
+            }
+        }
+
+        function triggerHeartbeatAnimation() {
+            heartIcon.classList.remove("pulsing");
+            void heartIcon.offsetWidth;
+            heartIcon.classList.add("pulsing");
+        }
+
+        async function toggleSimulator() {
+            try {
+                const res = await fetch("/simulate/toggle", { method: "POST" });
+                const json = await res.json();
+                simActive = (json.status === "started");
+                const btn = document.getElementById("btnToggleSim");
+                if (simActive) {
+                    btn.innerText = "Stop Workout Simulation";
+                    btn.style.background = "rgba(244, 63, 94, 0.2)";
+                    btn.style.borderColor = "rgba(244, 63, 94, 0.4)";
+                    btn.style.color = "var(--accent-red)";
+                } else {
+                    btn.innerText = "Start Workout Simulation";
+                    btn.style.background = "rgba(56, 189, 248, 0.12)";
+                    btn.style.borderColor = "rgba(56, 189, 248, 0.3)";
+                    btn.style.color = "var(--accent-cyan)";
+                }
+            } catch (e) {
+                console.error("Simulation toggle error:", e);
+            }
+        }
+
+        // 60 FPS Render Loop for 3-Axis Accel Canvas
+        function renderAccelOscilloscope() {
+            const rect = accelCanvas.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            accelCtx.fillStyle = "#050811";
+            accelCtx.fillRect(0, 0, width, height);
+
+            // Subtle Grid
+            accelCtx.lineWidth = 0.5;
+            accelCtx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+            accelCtx.beginPath();
+            for (let y = 0; y < height; y += 30) {
+                accelCtx.moveTo(0, y);
+                accelCtx.lineTo(width, y);
+            }
+            accelCtx.stroke();
+
+            const midY = height / 2;
+            const step = width / (ACCEL_CAPACITY - 1);
+            const scaleY = (height / 2) / 4500.0;
+
+            function drawChannel(buffer, color) {
+                accelCtx.lineWidth = 1.8;
+                accelCtx.strokeStyle = color;
+                accelCtx.beginPath();
+                for (let i = 0; i < ACCEL_CAPACITY; i++) {
+                    const idx = (accelWritePointer + i) % ACCEL_CAPACITY;
+                    let val = buffer[idx];
+                    val = Math.max(-4500, Math.min(4500, val));
+                    const x = i * step;
+                    const y = midY - (val * scaleY);
+                    if (i === 0) accelCtx.moveTo(x, y);
+                    else accelCtx.lineTo(x, y);
+                }
+                accelCtx.stroke();
+            }
+
+            if (accelPointsInBuffer > 1) {
+                drawChannel(accelXBuffer, "#f43f5e"); // X: Red
+                drawChannel(accelYBuffer, "#10b981"); // Y: Green
+                drawChannel(accelZBuffer, "#38bdf8"); // Z: Blue
+            }
+        }
+
+        function animationLoop() {
+            renderAccelOscilloscope();
+            requestAnimationFrame(animationLoop);
+        }
+
+        connectWebSocket();
+        requestAnimationFrame(animationLoop);
+    </script>
+</body>
+
+</html>
