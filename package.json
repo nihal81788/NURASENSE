@@ -4,6 +4,7 @@
   "description": "Two-hour ECG early warning system for Thyrotoxic Periodic Paralysis (TPP)",
   "private": true,
   "scripts": {
+    "build": "npm --prefix frontend install && npm --prefix frontend run build",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "npm --prefix backend run dev",
     "start": "npm --prefix backend run start",
