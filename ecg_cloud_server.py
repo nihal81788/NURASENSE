@@ -702,16 +702,28 @@ async def get_alert_status(user_id: str):
     }
 
 
+class TestAlertPayload(BaseModel):
+    location: Optional[dict] = None
+
+
 @app.post("/alerts/{user_id}/test")
 async def test_alert_dispatch(
     user_id: str,
+    payload: Optional[TestAlertPayload] = None,
     x_device_token: Optional[str] = Header(None)
 ):
     """
-    Manual testing endpoint: Dispatches test alert via Twilio, Fast2SMS and EmailJS
+    Manual testing endpoint: Dispatches test alert via Twilio, Fast2SMS and EmailJS/SMTP
     using the patient's registered emergency contacts (bypasses 30-min cooldown for testing).
     """
-    loc = latest_user_locations.get(user_id) or {"lat": 28.6139, "lng": 77.2090}
+    loc = None
+    if payload and payload.location:
+        loc = payload.location
+    if not loc:
+        loc = latest_user_locations.get(user_id)
+    if not loc:
+        loc = {"lat": 28.6139, "lng": 77.2090}
+
     res = await alert_system.send_all_alerts(
         user_id=user_id,
         potassium_mmol=2.9,

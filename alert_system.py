@@ -78,25 +78,92 @@ class AlertSystem:
                 return ""
         return ""
 
+    async def send_single_sms(self, client: httpx.AsyncClient, phone: str, message: str) -> tuple[bool, str]:
+        """
+        Sends SMS to a single 10-digit Indian phone number via Fast2SMS,
+        falling back to Twilio SMS if Fast2SMS fails.
+        """
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
+        # 1. Try Fast2SMS POST
+        if self.fast2sms_api_key:
+            headers = {
+                "authorization": self.fast2sms_api_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "User-Agent": user_agent
+            }
+            body = {
+                "route": "q",
+                "message": message,
+                "language": "english",
+                "flash": 0,
+                "numbers": phone
+            }
+            try:
+                resp = await client.post("https://www.fast2sms.com/dev/bulkV2", json=body, headers=headers)
+                data = resp.json() if resp.status_code == 200 else {}
+                if resp.status_code == 200 and data.get("return") is True:
+                    req_id = data.get("request_id", "ok")
+                    msg = f"Fast2SMS delivered to {phone} (Req: {req_id})"
+                    print(f"[AlertSystem] {msg}")
+                    return True, msg
+                else:
+                    err_msg = data.get("message") or resp.text
+                    print(f"[AlertSystem] Fast2SMS POST for {phone} note: {err_msg}")
+            except Exception as e:
+                print(f"[AlertSystem] Fast2SMS POST error for {phone}: {e}")
+
+            # 2. Try Fast2SMS GET
+            try:
+                get_params = {
+                    "authorization": self.fast2sms_api_key,
+                    "route": "q",
+                    "message": message,
+                    "language": "english",
+                    "flash": "0",
+                    "numbers": phone
+                }
+                resp_get = await client.get(
+                    "https://www.fast2sms.com/dev/bulkV2",
+                    params=get_params,
+                    headers={"User-Agent": user_agent, "Accept": "application/json"}
+                )
+                data_get = resp_get.json() if resp_get.status_code == 200 else {}
+                if resp_get.status_code == 200 and data_get.get("return") is True:
+                    req_id = data_get.get("request_id", "ok")
+                    msg = f"Fast2SMS GET delivered to {phone} (Req: {req_id})"
+                    print(f"[AlertSystem] {msg}")
+                    return True, msg
+            except Exception as e:
+                print(f"[AlertSystem] Fast2SMS GET error for {phone}: {e}")
+
+        # 3. Fallback to Twilio SMS if Fast2SMS didn't deliver
+        if self.twilio_client and self.twilio_phone_number:
+            try:
+                e164 = f"+91{phone}" if len(phone) == 10 else f"+{phone}"
+                loop = asyncio.get_running_loop()
+                call_res = await loop.run_in_executor(
+                    None,
+                    lambda: self.twilio_client.messages.create(
+                        body=message,
+                        to=e164,
+                        from_=self.twilio_phone_number
+                    )
+                )
+                msg = f"Twilio SMS delivered to {e164} (SID: {call_res.sid})"
+                print(f"[AlertSystem] {msg}")
+                return True, msg
+            except Exception as ex:
+                print(f"[AlertSystem] Twilio SMS error for {phone}: {ex}")
+
+        return False, f"Failed for {phone}"
+
     async def send_sms_fast2sms(self, phones: List[str], message: str) -> tuple[bool, str]:
         """
-        Fast2SMS Quick Transactional SMS API call:
-        POST https://www.fast2sms.com/dev/bulkV2
-        headers: authorization: FAST2SMS_API_KEY
-        body: {
-          "route": "q",
-          "message": message,
-          "language": "english",
-          "flash": 0,
-          "numbers": "91XXXXXXXXXX,91XXXXXXXXXX"
-        }
+        Dispatches emergency SMS to all contact phone numbers individually,
+        ensuring each recipient receives the full alert message and location.
         """
-        if not self.fast2sms_api_key:
-            msg = "FAST2SMS_API_KEY is not set in Railway environment variables."
-            print(f"[AlertSystem] Fast2SMS skipped: {msg}")
-            self.last_sms_debug = msg
-            return False, msg
-
         if not phones:
             msg = "No contact phone numbers found in emergency contacts."
             print(f"[AlertSystem] Fast2SMS skipped: {msg}")
@@ -114,89 +181,27 @@ class AlertSystem:
             elif len(digits) > 10:
                 cleaned_phones.append(digits[-10:])
 
-        if not cleaned_phones:
+        # Deduplicate phone numbers
+        unique_phones = list(dict.fromkeys(cleaned_phones))
+        if not unique_phones:
             msg = f"Could not extract valid 10-digit Indian numbers from {phones}"
             print(f"[AlertSystem] {msg}")
             self.last_sms_debug = msg
             return False, msg
 
-        numbers_str = ",".join(cleaned_phones)
+        delivered_count = 0
+        details = []
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            for phone in unique_phones:
+                ok, note = await self.send_single_sms(client, phone, message)
+                if ok:
+                    delivered_count += 1
+                details.append(f"{phone}: {'OK' if ok else 'FAIL'}")
 
-        # Fast2SMS requires short messages for single-credit dispatch. Truncate if too long.
-        safe_message = message[:159] if len(message) > 160 else message
-
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-
-        try:
-            async with httpx.AsyncClient(timeout=12.0) as client:
-                # 1. Attempt standard POST request
-                headers = {
-                    "authorization": self.fast2sms_api_key,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                    "User-Agent": user_agent
-                }
-                body = {
-                    "route": "q",
-                    "message": safe_message,
-                    "language": "english",
-                    "flash": 0,
-                    "numbers": numbers_str
-                }
-                resp = await client.post("https://www.fast2sms.com/dev/bulkV2", json=body, headers=headers)
-                
-                try:
-                    data = resp.json()
-                except Exception:
-                    data = {}
-
-                # Fast2SMS returns: {"return": true, "request_id": "...", "message": ["SMS sent successfully."]}
-                if resp.status_code == 200 and data.get("return") is True:
-                    req_id = data.get("request_id", "ok")
-                    success_msg = f"SMS sent via POST to {numbers_str} (Req: {req_id})"
-                    print(f"[AlertSystem] {success_msg}")
-                    self.last_sms_debug = success_msg
-                    return True, success_msg
-
-                # 2. If POST fails (e.g. Cloudflare WAF 400 or payload issue), fall back to Fast2SMS GET request
-                print(f"[AlertSystem] Fast2SMS POST gave HTTP {resp.status_code}. Retrying with GET...")
-                get_params = {
-                    "authorization": self.fast2sms_api_key,
-                    "route": "q",
-                    "message": safe_message,
-                    "language": "english",
-                    "flash": "0",
-                    "numbers": numbers_str
-                }
-                resp_get = await client.get(
-                    "https://www.fast2sms.com/dev/bulkV2",
-                    params=get_params,
-                    headers={"User-Agent": user_agent, "Accept": "application/json"}
-                )
-                try:
-                    data_get = resp_get.json()
-                except Exception:
-                    data_get = {}
-
-                if resp_get.status_code == 200 and data_get.get("return") is True:
-                    req_id = data_get.get("request_id", "ok")
-                    success_msg = f"SMS sent via GET fallback to {numbers_str} (Req: {req_id})"
-                    print(f"[AlertSystem] {success_msg}")
-                    self.last_sms_debug = success_msg
-                    return True, success_msg
-                else:
-                    err_detail = data_get.get("message") or data.get("message") or resp_get.text or f"HTTP {resp_get.status_code}"
-                    if isinstance(err_detail, list):
-                        err_detail = ", ".join(str(x) for x in err_detail)
-                    err_msg = f"Fast2SMS API rejected (HTTP {resp_get.status_code}): {err_detail}"
-                    print(f"[AlertSystem] {err_msg}")
-                    self.last_sms_debug = err_msg
-                    return False, err_msg
-        except Exception as e:
-            err_msg = f"Fast2SMS network error: {str(e)}"
-            print(f"[AlertSystem] {err_msg}")
-            self.last_sms_debug = err_msg
-            return False, err_msg
+        summary = f"Delivered to {delivered_count}/{len(unique_phones)} contacts ({', '.join(details)})"
+        print(f"[AlertSystem] {summary}")
+        self.last_sms_debug = summary
+        return (delivered_count > 0), summary
 
     async def send_voice_call_twilio(self, patient_phone: str, potassium_mmol: float) -> tuple[bool, str]:
         """
@@ -249,6 +254,81 @@ class AlertSystem:
             msg = f"Twilio voice call error: {str(e)}"
             print(f"[AlertSystem] {msg}")
             self.last_call_debug = msg
+            return False, msg
+
+    async def send_email_smtp(
+        self,
+        contacts: List[Dict[str, Any]],
+        potassium_mmol: float,
+        location_link: str
+    ) -> tuple[bool, str]:
+        """
+        Direct SMTP email delivery fallback (e.g. Gmail / Brevo / standard SMTP).
+        Triggered when SMTP_USER and SMTP_PASS are set in Railway.
+        """
+        smtp_user = os.getenv("SMTP_USER", "").strip().strip('"').strip("'")
+        smtp_pass = os.getenv("SMTP_PASS", "").strip().strip('"').strip("'")
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com").strip()
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
+        if not smtp_user or not smtp_pass:
+            return False, "SMTP credentials (SMTP_USER / SMTP_PASS) not configured."
+
+        import smtplib
+        from email.mime.text import MIMEText
+        from email.mime.multipart import MIMEMultipart
+
+        loop = asyncio.get_running_loop()
+        sent_count = 0
+        last_error = ""
+
+        for c in contacts:
+            email = c.get("email")
+            if not email:
+                continue
+            name = c.get("name", "Emergency Contact")
+            patient_name = c.get("patient_name", "NuraSense Patient")
+
+            loc_section = f"\nPatient Location (Google Maps):\n{location_link}\n" if location_link else ""
+            body = (
+                f"🚨 NURASENSE EMERGENCY CLINICAL ALERT\n\n"
+                f"Attention {name},\n\n"
+                f"A critical hypokalemia episode has been detected for {patient_name}.\n"
+                f"Current Estimated Serum Potassium: {potassium_mmol:.1f} mmol/L (Severe Hypokalemia / High TPP Risk).\n\n"
+                f"Urgent Actions Required:\n"
+                f"1. Prompt patient to take immediate oral potassium chloride supplement.\n"
+                f"2. Contact medical emergency services if paralysis or weakness develops.{loc_section}\n"
+                f"Dispatched: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n"
+                f"---\nNuraSense Thyrotoxic Periodic Paralysis Telemetry Engine"
+            )
+
+            msg = MIMEMultipart()
+            msg["From"] = f"NuraSense Clinical Telemetry <{smtp_user}>"
+            msg["To"] = email
+            msg["Subject"] = f"🚨 URGENT: Critical Low Potassium Alert ({potassium_mmol:.1f} mmol/L)"
+            msg.attach(MIMEText(body, "plain"))
+
+            def _send_sync(to_addr=email, msg_str=msg.as_string()):
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=10.0) as server:
+                    server.starttls()
+                    server.login(smtp_user, smtp_pass)
+                    server.sendmail(smtp_user, to_addr, msg_str)
+
+            try:
+                await loop.run_in_executor(None, _send_sync)
+                print(f"[AlertSystem] SMTP alert email sent to {email}")
+                sent_count += 1
+            except Exception as ex:
+                last_error = str(ex)
+                print(f"[AlertSystem] SMTP send failed for {email}: {ex}")
+
+        if sent_count > 0:
+            msg = f"Dispatched via SMTP to {sent_count} contact(s)."
+            self.last_email_debug = msg
+            return True, msg
+        else:
+            msg = f"SMTP dispatch failed: {last_error}"
+            self.last_email_debug = msg
             return False, msg
 
     async def send_email_emailjs(
@@ -380,7 +460,7 @@ class AlertSystem:
         ]
         patient_phone = patient_contacts[0]["phone"] if patient_contacts else (sms_phones[0] if sms_phones else "")
 
-        # 2. Fast2SMS dispatch (with optional Twilio SMS fallback)
+        # 2. Multi-Contact SMS dispatch (Fast2SMS per-number with Twilio SMS fallback)
         sms_sent = False
         sms_debug = "No phone numbers registered"
         if sms_phones:
@@ -391,44 +471,24 @@ class AlertSystem:
             )
             sms_sent, sms_debug = await self.send_sms_fast2sms(sms_phones, sms_text)
 
-            # Fallback to Twilio SMS if Fast2SMS was blocked (e.g. uncharged wallet)
-            if not sms_sent and self.twilio_client and self.twilio_phone_number:
-                print(f"[AlertSystem] Fast2SMS failed ({sms_debug}). Attempting Twilio SMS fallback...")
-                try:
-                    loop = asyncio.get_running_loop()
-                    for ph in sms_phones:
-                        e164 = str(ph).strip()
-                        if not e164.startswith("+"):
-                            e164 = f"+91{e164}" if len(e164) == 10 else f"+{e164}"
-                        await loop.run_in_executor(
-                            None,
-                            lambda p=e164: self.twilio_client.messages.create(
-                                body=sms_text,
-                                to=p,
-                                from_=self.twilio_phone_number
-                            )
-                        )
-                    sms_sent = True
-                    sms_debug = f"Delivered via Twilio SMS fallback (Fast2SMS required ₹100 recharge)"
-                    print(f"[AlertSystem] {sms_debug}")
-                except Exception as ex:
-                    print(f"[AlertSystem] Twilio SMS fallback note: {ex}")
-                    # Keep original Fast2SMS explanation if Twilio SMS also fails
-                    if "100 INR" not in sms_debug:
-                        sms_debug += f" | Twilio SMS: {ex}"
-
         # 3. Twilio Voice Call dispatch
         call_sent = False
         call_debug = "No patient phone found"
         if patient_phone:
             call_sent, call_debug = await self.send_voice_call_twilio(patient_phone, potassium_mmol)
 
-        # 4. EmailJS dispatch
+        # 4. Email Alert dispatch (EmailJS or SMTP fallback)
         email_sent = False
         email_debug = "No email addresses registered"
         email_contacts = [c for c in contacts if c.get("email")]
         if email_contacts:
-            email_sent, email_debug = await self.send_email_emailjs(email_contacts, potassium_mmol, location_link)
+            if self.emailjs_public_key:
+                email_sent, email_debug = await self.send_email_emailjs(email_contacts, potassium_mmol, location_link)
+            elif os.getenv("SMTP_USER") and os.getenv("SMTP_PASS"):
+                email_sent, email_debug = await self.send_email_smtp(email_contacts, potassium_mmol, location_link)
+            else:
+                email_debug = "Email not configured: Add EMAILJS_PUBLIC_KEY, EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID (or SMTP_USER/SMTP_PASS) in Railway variables."
+                print(f"[AlertSystem] {email_debug}")
 
         # 5. Persist log entry to Supabase alert_logs table & in-memory cache
         lat = location.get("lat") if location else None

@@ -885,13 +885,20 @@ export function initDashboardListeners() {
         const railwayHost = localStorage.getItem('nurasense_railway_url') || 'https://nurasense-production.up.railway.app';
         const cleanHost = railwayHost.replace(/\/+$/, '');
 
-        const resp = await fetch(`${cleanHost}/alerts/${userId}/test`, { method: 'POST' });
+        const reqPayload = {
+          location: window._nurasenseLocation || null
+        };
+        const resp = await fetch(`${cleanHost}/alerts/${userId}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reqPayload)
+        });
         const resJson = await resp.json();
         if (resJson.status === 'cooldown_active') {
           showToast(`Cooldown active: ${resJson.remaining_seconds}s remaining. Resetting cooldown…`, 'warn');
           await fetch(`${cleanHost}/alerts/${userId}/reset-cooldown`, { method: 'POST' });
         } else {
-          const smsStatus = resJson.sms_sent ? '✅ SMS Sent' : `⚠️ SMS: ${resJson.sms_debug || 'Skipped'}`;
+          const smsStatus = resJson.sms_sent ? `✅ SMS: ${resJson.sms_debug || 'Sent'}` : `⚠️ SMS: ${resJson.sms_debug || 'Skipped'}`;
           const callStatus = resJson.call_sent ? '✅ Twilio Call Placed' : `⚠️ Call: ${resJson.call_debug || 'Skipped'}`;
           showToast(`${smsStatus} | ${callStatus}`, (resJson.sms_sent || resJson.call_sent) ? 'success' : 'warn');
           fetchAlertHistory(userId);
