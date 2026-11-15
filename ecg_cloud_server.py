@@ -679,16 +679,24 @@ async def test_alert_dispatch(
 ):
     """
     Manual testing endpoint: Dispatches test alert via Twilio, Fast2SMS and EmailJS
-    using the patient's registered emergency contacts.
+    using the patient's registered emergency contacts (bypasses 30-min cooldown for testing).
     """
     loc = latest_user_locations.get(user_id) or {"lat": 28.6139, "lng": 77.2090}
     res = await alert_system.send_all_alerts(
         user_id=user_id,
         potassium_mmol=2.9,
         location=loc,
-        supabase_client=supabase_client
+        supabase_client=supabase_client,
+        bypass_cooldown=True
     )
     return res
+
+
+@app.post("/alerts/{user_id}/reset-cooldown")
+async def reset_alert_cooldown(user_id: str):
+    """Resets the 30-minute anti-spam cooldown for testing."""
+    alert_system.reset_cooldown(user_id)
+    return {"status": "ok", "message": f"Cooldown reset for user {user_id}"}
 
 
 @app.websocket("/ws/{user_id}")

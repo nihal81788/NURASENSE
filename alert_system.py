@@ -233,24 +233,30 @@ class AlertSystem:
 
         return dispatched_count > 0
 
+    def reset_cooldown(self, user_id: str):
+        """Resets the cooldown for this user so alerts can fire immediately."""
+        self.cooldown_tracker.pop(user_id, None)
+        print(f"[AlertSystem] Cooldown reset for user {user_id}")
+
     async def send_all_alerts(
         self,
         user_id: str,
         potassium_mmol: float,
         location: dict,
-        supabase_client
+        supabase_client,
+        bypass_cooldown: bool = False
     ) -> Dict[str, Any]:
         """
         Main alert orchestrator:
-        1. Enforces 30-minute cooldown per user to prevent notification spam
+        1. Enforces 30-minute cooldown per user to prevent notification spam (unless bypass_cooldown=True)
         2. Queries emergency_contacts from Supabase
         3. Sends SMS to family members via Fast2SMS
         4. Initiates Twilio synthesized voice call to patient
         5. Sends clinical alert email via EmailJS
         6. Persists audit record in Supabase alert_logs & in-memory cache
         """
-        # Check cooldown
-        if self.is_cooldown_active(user_id):
+        # Check cooldown (bypassed for manual testing)
+        if not bypass_cooldown and self.is_cooldown_active(user_id):
             remaining = int(self.cooldown_seconds - (time.time() - self.cooldown_tracker.get(user_id, 0.0)))
             print(f"[AlertSystem] Cooldown active for user {user_id}. Next alert allowed in {remaining}s.")
             return {
@@ -261,9 +267,10 @@ class AlertSystem:
                 "email_sent": False
             }
 
-        # Mark cooldown immediately
-        self.cooldown_tracker[user_id] = time.time()
-        print(f"[AlertSystem] 🚨 TRIGGERING EMERGENCY TPP ALERTS for user {user_id}: K+ = {potassium_mmol:.2f} mmol/L")
+        # Mark cooldown timestamp unless testing
+        if not bypass_cooldown:
+            self.cooldown_tracker[user_id] = time.time()
+        print(f"[AlertSystem] 🚨 TRIGGERING EMERGENCY TPP ALERTS for user {user_id}: K+ = {potassium_mmol:.2f} mmol/L (bypass_cooldown={bypass_cooldown})")
 
         location_link = self.generate_location_link(location)
         contacts: List[Dict[str, Any]] = []
