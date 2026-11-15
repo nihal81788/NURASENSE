@@ -468,8 +468,11 @@ async def ingest_ecg_batch(
                 )
 
     # Broadcast via WebSocket to dashboard
+    # Sends raw ESP32 ADC data as requested, plus filtered samples for clinical analysis
     broadcast_payload = {
-        "samples": [round(float(s), 4) for s in filtered_samples],
+        "samples": [float(s) for s in payload.samples],
+        "raw_samples": [float(s) for s in payload.samples],
+        "filtered_samples": [round(float(s), 4) for s in filtered_samples],
         "bpm": 0.0 if state.is_leads_off else bpm,
         "leads_off": bool(state.is_leads_off),
         "device_token": x_device_token,

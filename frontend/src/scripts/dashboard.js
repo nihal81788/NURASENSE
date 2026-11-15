@@ -944,6 +944,30 @@ export function initCloudEcgMonitor(userId) {
   const liveDot = document.getElementById('ecgLiveDot');
   const linkStatus = document.getElementById('liveEcgLinkStatus');
   const ecgState = document.getElementById('ecgState');
+  const rawAdcEl = document.getElementById('liveRawAdcVal');
+  const btnModeRaw = document.getElementById('btnModeRaw');
+  const btnModeFiltered = document.getElementById('btnModeFiltered');
+  const specsLabel = document.getElementById('ecgSpecsLabel');
+
+  // Display mode: 'raw' (default as requested: plots raw ESP32 data) or 'filtered'
+  let displayMode = 'raw';
+
+  if (btnModeRaw) {
+    btnModeRaw.addEventListener('click', () => {
+      displayMode = 'raw';
+      btnModeRaw.classList.add('is-active');
+      if (btnModeFiltered) btnModeFiltered.classList.remove('is-active');
+      if (specsLabel) specsLabel.textContent = 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY';
+    });
+  }
+  if (btnModeFiltered) {
+    btnModeFiltered.addEventListener('click', () => {
+      displayMode = 'filtered';
+      btnModeFiltered.classList.add('is-active');
+      if (btnModeRaw) btnModeRaw.classList.remove('is-active');
+      if (specsLabel) specsLabel.textContent = '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass';
+    });
+  }
 
   // Buffer of 500 samples (250Hz * 2.0 seconds - displays ~2 to 3 distinct spaced beats)
   const BUFFER_SIZE = 500;
@@ -1061,18 +1085,28 @@ export function initCloudEcgMonitor(userId) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.samples && Array.isArray(data.samples)) {
+          const rawBatch = data.raw_samples || data.samples;
+          const filteredBatch = data.filtered_samples;
+
+          // Update live Raw ADC level readout
+          if (rawAdcEl && rawBatch && rawBatch.length > 0) {
+            const latestRaw = Math.round(rawBatch[rawBatch.length - 1]);
+            rawAdcEl.innerHTML = `${latestRaw} <span class="ecg-metric__unit">cts</span>`;
+          }
+
+          const currentBatch = (displayMode === 'filtered' && filteredBatch) ? filteredBatch : rawBatch;
+
+          if (currentBatch && Array.isArray(currentBatch)) {
             isReceivingSignal = true;
             lastSignalTime = Date.now();
 
             // Shift new batch of samples into rolling buffer
-            const newSamples = data.samples;
-            for (let i = 0; i < newSamples.length; i++) {
-              samples[sampleIndex] = newSamples[i];
+            for (let i = 0; i < currentBatch.length; i++) {
+              samples[sampleIndex] = currentBatch[i];
               sampleIndex = (sampleIndex + 1) % BUFFER_SIZE;
             }
 
-            if (data.leads_off) {
+            if (data.leads_off && displayMode === 'filtered') {
               if (linkStatus) {
                 linkStatus.textContent = 'Leads Off';
                 linkStatus.style.color = '#ffa726';
@@ -1209,27 +1243,57 @@ export function initCloudEcgMonitor(userId) {
     ctx.beginPath();
 
     const dx = width / BUFFER_SIZE;
-    // Enhanced clinical gain: tall majestic R-peaks with smooth baseline (matches MATLAB reference)
     const scaleY = (height / 2) * 0.86;
+
+    // In Raw ADC mode, calculate rolling baseline and dynamic span across current buffer
+    let minRaw = Infinity;
+    let maxRaw = -Infinity;
+    let sumRaw = 0;
+    let countRaw = 0;
+    if (displayMode === 'raw') {
+      for (let j = 0; j < BUFFER_SIZE; j++) {
+        const val = samples[j];
+        if (val > 0) {
+          if (val < minRaw) minRaw = val;
+          if (val > maxRaw) maxRaw = val;
+          sumRaw += val;
+          countRaw++;
+        }
+      }
+    }
+    const baseline = countRaw > 10 ? (sumRaw / countRaw) : 2048;
+    const dynamicSpan = countRaw > 10 ? (maxRaw - minRaw) : 400;
+    // Effective span: at least 250 ADC counts tall so ambient noise doesn't blow up
+    const effectiveSpan = Math.max(250, dynamicSpan * 1.15);
 
     for (let i = 0; i < BUFFER_SIZE; i++) {
       // Circular read relative to current sampleIndex for continuous scrolling
       const readIdx = (sampleIndex + i) % BUFFER_SIZE;
       let rawVal = samples[readIdx];
 
-      // 5-point binomial smoothing filter (eliminates fine DAC/EMG ripple while preserving sharp R-peak needles)
-      if (i >= 2 && i < BUFFER_SIZE - 2) {
-        const im2 = (sampleIndex + i - 2) % BUFFER_SIZE;
-        const im1 = (sampleIndex + i - 1) % BUFFER_SIZE;
-        const ip1 = (sampleIndex + i + 1) % BUFFER_SIZE;
-        const ip2 = (sampleIndex + i + 2) % BUFFER_SIZE;
-        rawVal = 0.06 * samples[im2] + 0.24 * samples[im1] + 0.40 * rawVal + 0.24 * samples[ip1] + 0.06 * samples[ip2];
+      let y;
+      if (displayMode === 'raw') {
+        // Direct Raw ADC stream from ESP32:
+        // Centered around moving baseline, inverted so physiological R-peaks spike upwards
+        const delta = (rawVal - baseline) * -1.0;
+        const normalized = delta / (effectiveSpan * 0.55);
+        y = midY - (normalized * (height / 2) * 0.85);
+      } else {
+        // 5-point binomial smoothing filter (eliminates fine DAC/EMG ripple while preserving sharp R-peak needles)
+        if (i >= 2 && i < BUFFER_SIZE - 2) {
+          const im2 = (sampleIndex + i - 2) % BUFFER_SIZE;
+          const im1 = (sampleIndex + i - 1) % BUFFER_SIZE;
+          const ip1 = (sampleIndex + i + 1) % BUFFER_SIZE;
+          const ip2 = (sampleIndex + i + 2) % BUFFER_SIZE;
+          rawVal = 0.06 * samples[im2] + 0.24 * samples[im1] + 0.40 * rawVal + 0.24 * samples[ip1] + 0.06 * samples[ip2];
+        }
+
+        // Enhanced gain (1.9x) with soft hyperbolic tangent ceiling: R-peaks spike tall without rail clipping
+        const normalizedVal = Math.tanh(rawVal * 1.85);
+        y = midY - (normalizedVal * scaleY);
       }
 
-      // Enhanced gain (1.9x) with soft hyperbolic tangent ceiling: R-peaks spike tall without rail clipping
-      const normalizedVal = Math.tanh(rawVal * 1.85);
-      const y = midY - (normalizedVal * scaleY);
-      const clampedY = Math.max(6, Math.min(height - 6, y));
+      const clampedY = Math.max(4, Math.min(height - 4, y));
       const x = i * dx;
 
       if (i === 0) {

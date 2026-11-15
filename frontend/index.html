@@ -1073,8 +1073,12 @@
             <div class="ecg-monitor" id="ecgMonitor">
               <div class="ecg-bar">
                 <span class="ecg-bar__live"><span class="live-dot" id="ecgLiveDot"></span><span id="ecgState">Waiting for signal...</span></span>
-                <span class="ecg-specs">250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass</span>
-                <button type="button" class="mini-btn js-open-pair-device" style="margin-left: auto;">+ Pair ESP32</button>
+                <span class="ecg-specs" id="ecgSpecsLabel">ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY</span>
+                <div class="ecg-mode-toggle" style="margin-left: auto; display: flex; gap: 6px;">
+                  <button type="button" class="mini-btn is-active" id="btnModeRaw" style="font-size: 11px; padding: 3px 8px;">Raw ADC</button>
+                  <button type="button" class="mini-btn" id="btnModeFiltered" style="font-size: 11px; padding: 3px 8px;">Filtered</button>
+                </div>
+                <button type="button" class="mini-btn js-open-pair-device">+ Pair ESP32</button>
               </div>
               <canvas id="liveEcgCanvas" class="ecg-realtime-canvas" width="900" height="220" role="img" aria-label="Real-time ECG stream"></canvas>
             </div>
@@ -1096,9 +1100,9 @@
                 <span class="ecg-metric__note ecg-metric__note--warn">Autonomic tone</span>
               </div>
               <div class="ecg-metric">
-                <span class="ecg-metric__label">Buffer Window</span>
-                <span class="ecg-metric__value">280 <span class="ecg-metric__unit">pts</span></span>
-                <span class="ecg-metric__note">1.1s wide clinical zoom</span>
+                <span class="ecg-metric__label">RAW ADC LEVEL</span>
+                <span class="ecg-metric__value" id="liveRawAdcVal">-- <span class="ecg-metric__unit">cts</span></span>
+                <span class="ecg-metric__note" id="liveRawAdcNote">12-bit (0–4095)</span>
               </div>
             </div>
           </article>

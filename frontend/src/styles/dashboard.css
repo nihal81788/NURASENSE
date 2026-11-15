@@ -355,6 +355,7 @@ body.app-mode { background: var(--ground); }
   white-space: nowrap;
 }
 .mini-btn:hover { border-color: var(--petrol); color: var(--petrol); }
+.mini-btn.is-active { background: rgba(0, 255, 136, 0.15); border-color: #00ff88; color: #00ff88; }
 .mini-btn:disabled { opacity: .55; cursor: default; }
 
 /* risk */
