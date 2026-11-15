@@ -779,12 +779,24 @@ body.app-mode { background: var(--ground); }
   animation: pulseGreen 1.4s infinite ease-in-out;
 }
 
+.live-dot.warning {
+  background-color: #ffa726;
+  box-shadow: 0 0 8px #ffa726;
+  animation: pulseWarning 1.4s infinite ease-in-out;
+}
+
 .live-dot.offline {
   background-color: #ff6b6b;
   box-shadow: 0 0 6px #ff6b6b;
 }
 
 @keyframes pulseGreen {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+@keyframes pulseWarning {
   0% { transform: scale(0.95); opacity: 0.8; }
   50% { transform: scale(1.15); opacity: 1; }
   100% { transform: scale(0.95); opacity: 0.8; }

@@ -982,8 +982,16 @@ export function initCloudEcgMonitor(userId) {
     ? 'ws://localhost:8765/ws/' + userId
     : `wss://${railwayHost}/ws/${userId}`;
 
-  function updateBpmDisplay(bpm) {
+  function updateBpmDisplay(bpm, isLeadsOff = false) {
     if (!bpmEl || !statusEl) return;
+
+    if (isLeadsOff) {
+      bpmEl.innerHTML = `-- <span class="ecg-metric__unit">bpm</span>`;
+      bpmEl.style.color = '#ffa726';
+      statusEl.textContent = '⚠️ Leads Disconnected';
+      statusEl.style.color = '#ffa726';
+      return;
+    }
 
     if (!bpm || bpm <= 0 || !isReceivingSignal) {
       bpmEl.innerHTML = `-- <span class="ecg-metric__unit">bpm</span>`;
@@ -1056,22 +1064,32 @@ export function initCloudEcgMonitor(userId) {
           if (data.samples && Array.isArray(data.samples)) {
             isReceivingSignal = true;
             lastSignalTime = Date.now();
-            setConnectionState('streaming');
 
-            // Shift new batch of samples into 750-sample rolling buffer
+            // Shift new batch of samples into rolling buffer
             const newSamples = data.samples;
             for (let i = 0; i < newSamples.length; i++) {
               samples[sampleIndex] = newSamples[i];
               sampleIndex = (sampleIndex + 1) % BUFFER_SIZE;
             }
 
-            if (data.bpm !== undefined && data.bpm !== null) {
-              currentBpm = data.bpm;
-              updateBpmDisplay(currentBpm);
+            if (data.leads_off) {
+              if (linkStatus) {
+                linkStatus.textContent = 'Leads Off';
+                linkStatus.style.color = '#ffa726';
+              }
+              if (liveDot) liveDot.className = 'live-dot warning';
+              if (ecgState && !isPaused) ecgState.textContent = 'Attach Electrodes';
+              updateBpmDisplay(0, true);
+            } else {
+              setConnectionState('streaming');
+              if (data.bpm !== undefined && data.bpm !== null) {
+                currentBpm = data.bpm;
+                updateBpmDisplay(currentBpm, false);
+              }
             }
 
             // Potassium handling from WebSocket (Live Real-Time Inference)
-            if (data.potassium) {
+            if (!data.leads_off && data.potassium) {
               const k = data.potassium;
               dashState.potassium = Number(k.mmol);
               const now = new Date();
@@ -1252,8 +1270,9 @@ export function initCloudEcgMonitor(userId) {
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('focus', onWindowFocus);
 
-  // Start WebSocket connection & render loop
+  // Start WebSocket connection, fetch latest recorded telemetry & render loop
   connectWs();
+  fetchKHistory(userId);
   animFrameId = requestAnimationFrame(renderEcgWaveform);
 
   // Return teardown function if needed

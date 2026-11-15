@@ -165,12 +165,74 @@ class DeviceSignalState:
         self.last_update_time: float = time.time()
         self.lock = asyncio.Lock()
 
+        # Real-time Leads-Off Detection:
+        # Tracks rolling 1.5s (375 samples @ 250Hz) raw ADC history & hysteresis counter
+        self.raw_history: deque = deque(maxlen=375)
+        self.is_leads_off: bool = True  # Safe initial state until skin contact confirmed
+        self.leads_off_counter: int = 5  # Hysteresis debounce counter
+
     def filter_batch(self, raw_samples: List[float]) -> np.ndarray:
-        """Applies streaming 50Hz notch and 0.67-35Hz clinical bandpass filtering."""
+        """
+        Applies streaming 50Hz notch and 0.67-35Hz clinical bandpass filtering.
+        Includes real-time Software Leads-Off Detection:
+        If electrodes are removed from skin (input railed near 0/4095 or floating open-circuit noise),
+        suppresses ambient hum, clamps output to clean 0 flatline, drops BPM to 0,
+        and flags leads_off=True.
+        """
         arr = np.asarray(raw_samples, dtype=np.float32)
         if len(arr) == 0:
             return np.array([], dtype=np.float32)
 
+        # Record raw samples into rolling history for leads-off analysis
+        for s in arr:
+            self.raw_history.append(float(s))
+
+        # Evaluate Leads-Off condition once we have >= 200 samples (~0.8s - 1.5s)
+        if len(self.raw_history) >= 200:
+            raw_arr = np.asarray(self.raw_history, dtype=np.float32)
+
+            # 1. Rail saturation: inputs pulled to VDD (~4095) or GND (~0)
+            is_railed = (np.mean(raw_arr > 3950.0) > 0.25) or (np.mean(raw_arr < 90.0) > 0.25)
+
+            # 2. Peak-to-peak amplitude check:
+            # Living human ECG Lead I has sharp QRS excursion (>80 ADC counts).
+            # Open-circuit flatline or gentle baseline drift has ptp < 45 ADC counts.
+            raw_ptp = float(np.ptp(raw_arr))
+            is_flat = raw_ptp < 45.0
+
+            # 3. Floating antenna noise check:
+            # Floating leads in air pick up tiny ambient noise (std < 14 counts out of 4096).
+            # In real human ECG, QRS complexes generate std > 25 counts and ptp > 80 counts.
+            raw_std = float(np.std(raw_arr))
+            is_floating = raw_std < 14.0
+
+            leads_off_detected = is_railed or is_flat or is_floating
+
+            if leads_off_detected:
+                self.leads_off_counter = min(8, self.leads_off_counter + 1)
+                if self.leads_off_counter >= 3:
+                    self.is_leads_off = True
+            else:
+                self.leads_off_counter = max(0, self.leads_off_counter - 2)
+                if self.leads_off_counter == 0:
+                    self.is_leads_off = False
+        else:
+            # Not enough data yet - keep current state
+            pass
+
+        # If leads are off, output clean flatline zeros and reset estimators
+        if self.is_leads_off:
+            flatline = np.zeros(len(arr), dtype=np.float32)
+            self.envelope = 400.0  # Reset AGC envelope
+            self.smoothed_bpm = None
+            self.last_bpm = 0.0
+            self.valid_rr_history.clear()
+            for s in flatline:
+                self.filtered_history.append(float(s))
+            self.last_update_time = time.time()
+            return flatline
+
+        # --- Normal Connected Skin Telemetry Filtering ---
         # Update smooth continuous baseline (avoids tearing signal at batch edges)
         batch_mean = float(np.mean(arr))
         if self.dc_baseline is None:
@@ -179,7 +241,7 @@ class DeviceSignalState:
             alpha = 0.04
             self.dc_baseline = (1.0 - alpha) * self.dc_baseline + alpha * batch_mean
 
-        # Center signal around continuous baseline
+        # Center signal around continuous baseline and correct inverted Lead I polarity
         centered = arr - self.dc_baseline
         centered = centered * -1.0
 
@@ -209,18 +271,28 @@ class DeviceSignalState:
     def calculate_bpm(self) -> float:
         """
         Pan-Tompkins Algorithm with multi-beat RR outlier rejection & exponential damping:
-        1. 5.0-second window (1250 samples) for high-confidence multi-beat analysis
-        2. Dedicated 6-18 Hz bandpass for QRS energy isolation (eliminates T-wave false triggers)
-        3. Derivative + Squaring + 120ms Moving Window Integration
-        4. Adaptive thresholding with 380ms refractory blanking (max 158 BPM)
-        5. Interquartile / Trimmed mean over rolling RR history to reject noise & motion spikes
-        6. Exponential smoothing for rock-solid, clinically steady displayed BPM
+        1. Gated by leads-off detection: returns 0.0 immediately if leads are disconnected.
+        2. Requires minimum physiological QRS energy (std > 0.08, integrated peak > 0.03)
+           to reject floating antenna hum.
+        3. 5.0-second window (1250 samples) for high-confidence multi-beat analysis
+        4. Dedicated 6-18 Hz bandpass for QRS energy isolation (eliminates T-wave false triggers)
+        5. Derivative + Squaring + 120ms Moving Window Integration
+        6. Adaptive thresholding with 380ms refractory blanking (max 158 BPM)
+        7. Interquartile / Trimmed mean over rolling RR history to reject noise & motion spikes
+        8. Exponential smoothing for rock-solid, clinically steady displayed BPM
         """
+        if self.is_leads_off:
+            return 0.0
+
         if len(self.filtered_history) < 500:
             return self.last_bpm
 
         # Analyze up to last 1250 samples (5.0s)
         sig = np.array(list(self.filtered_history)[-1250:], dtype=np.float32)
+
+        # Minimum physiological signal excursion gate (suppresses faint noise)
+        if float(np.std(sig)) < 0.08 or float(np.ptp(sig)) < 0.25:
+            return 0.0
 
         # 1. Dedicated QRS bandpass (6 - 18 Hz)
         try:
@@ -236,6 +308,9 @@ class DeviceSignalState:
         # 4. Moving window integration (120ms = 30 samples at 250Hz)
         win_size = max(2, int(0.12 * self.fs))
         integrated = np.convolve(squared, np.ones(win_size) / win_size, mode="same")
+
+        if float(np.max(integrated)) < 0.03:
+            return 0.0
 
         # 5. Adaptive thresholding
         threshold = np.mean(integrated) + 1.2 * np.std(integrated)
@@ -368,36 +443,41 @@ async def ingest_ecg_batch(
         filtered_samples = state.filter_batch(payload.samples)
         bpm = state.calculate_bpm()
 
-        # Append filtered samples to device's rolling buffer (maxlen=3750 = 15s)
-        for s in filtered_samples:
-            state.rolling_ecg_buffer.append(float(s))
+        if state.is_leads_off:
+            # If electrodes are removed, flush rolling buffer so fake inference is never triggered
+            state.rolling_ecg_buffer.clear()
+        else:
+            # Append filtered samples to device's rolling buffer (maxlen=3750 = 15s)
+            for s in filtered_samples:
+                state.rolling_ecg_buffer.append(float(s))
 
-        # Run potassium prediction in background thread if buffer has >= 1250 samples (5s) and rate-limited to once every 10s
-        # (Runs via run_in_executor so heavy PyTorch inference NEVER blocks the /ingest HTTP response or ESP32 connection!)
-        now = time.time()
-        if len(state.rolling_ecg_buffer) >= 1250 and (now - state.last_k_prediction_time >= 10.0):
-            state.last_k_prediction_time = now
-            buf_arr = np.array(state.rolling_ecg_buffer, dtype=np.float32)
-            asyncio.create_task(
-                run_potassium_inference_async(
-                    user_id=user_id,
-                    device_id=device_db_id,
-                    buf_arr=buf_arr,
-                    bpm=bpm,
-                    state=state
+            # Run potassium prediction in background thread if buffer has >= 1250 samples (5s) and rate-limited to once every 10s
+            # (Runs via run_in_executor so heavy PyTorch inference NEVER blocks the /ingest HTTP response or ESP32 connection!)
+            now = time.time()
+            if len(state.rolling_ecg_buffer) >= 1250 and (now - state.last_k_prediction_time >= 10.0):
+                state.last_k_prediction_time = now
+                buf_arr = np.array(state.rolling_ecg_buffer, dtype=np.float32)
+                asyncio.create_task(
+                    run_potassium_inference_async(
+                        user_id=user_id,
+                        device_id=device_db_id,
+                        buf_arr=buf_arr,
+                        bpm=bpm,
+                        state=state
+                    )
                 )
-            )
 
     # Broadcast via WebSocket to dashboard
     broadcast_payload = {
         "samples": [round(float(s), 4) for s in filtered_samples],
-        "bpm": bpm,
+        "bpm": 0.0 if state.is_leads_off else bpm,
+        "leads_off": bool(state.is_leads_off),
         "device_token": x_device_token,
         "timestamp": time.time()
     }
 
     # Add potassium prediction to WebSocket broadcast if available
-    if state.last_k_prediction:
+    if not state.is_leads_off and state.last_k_prediction:
         broadcast_payload["potassium"] = {
             "mmol": state.last_k_prediction["potassium_mmol"],
             "risk": state.last_k_prediction["risk_class"],
@@ -411,9 +491,10 @@ async def ingest_ecg_batch(
         "status": "ok",
         "user_id": user_id,
         "processed_samples": len(payload.samples),
-        "bpm": bpm
+        "bpm": 0.0 if state.is_leads_off else bpm,
+        "leads_off": bool(state.is_leads_off)
     }
-    if state.last_k_prediction:
+    if not state.is_leads_off and state.last_k_prediction:
         response_data["potassium"] = broadcast_payload["potassium"]
 
     return response_data
