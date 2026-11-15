@@ -1040,12 +1040,6 @@
             <p>Your live signal, potassium and the next two hours in one view.</p>
           </div>
           <div class="app-intro__actions">
-            <button class="btn btn-primary" id="logKBtn" type="button">
-              <svg class="od-icon" style="--od-icon-size:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              Log potassium
-            </button>
             <button class="btn btn-outline" id="symptomBtn" type="button">Check symptoms</button>
           </div>
         </div>
@@ -1110,10 +1104,10 @@
           <article class="db-card card-vitals" id="dash-vitals" aria-labelledby="vitalsTitle">
             <header class="db-head">
               <div>
-                <h2 class="db-title" id="vitalsTitle">Other vitals</h2>
+                <h2 class="db-title" id="vitalsTitle">Other vitals <span class="tag" style="background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25); font-size: 9.5px; vertical-align: middle; margin-left: 6px; font-weight: 500;">Offline</span></h2>
                 <p class="db-sub">Sensor averages · last 10 minutes</p>
               </div>
-              <span class="tag">Live</span>
+              <span class="tag" style="background: rgba(148, 163, 184, 0.12); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.25);">Offline</span>
             </header>
             <div class="vitals-grid">
               <div class="vital-tile">
@@ -1179,25 +1173,24 @@
                 <h2 class="db-title" id="planTitle">Today’s care plan</h2>
                 <p class="db-sub">Small actions that keep potassium steady</p>
               </div>
-              <span class="plan-progress" id="planProgress">1 of 3 done</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="plan-progress" id="planProgress">1 of 2 done</span>
+                <button class="mini-btn" id="btnToggleAddPlan" type="button" style="padding: 2px 8px; font-size: 10.5px; font-weight: 600; cursor: pointer;">+ Add</button>
+              </div>
             </header>
-            <div class="plan-list">
-              <div class="plan-row">
-                <input type="checkbox" id="taskK" checked>
-                <div class="plan-row__body">
-                  <label class="plan-row__name is-done" id="taskKLabel" for="taskK">Morning potassium</label>
-                  <p class="plan-row__meta">Potassium chloride ER 20 mEq · 08:00</p>
-                </div>
-                <span class="plan-row__tag" id="taskKTag">Taken</span>
+
+            <!-- Inline form to add custom medicine or plan item -->
+            <form id="addPlanForm" class="add-plan-box" style="display: none; margin: 8px 0 10px; padding: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); border-radius: 6px;">
+              <input type="text" id="newPlanName" placeholder="Medicine / Plan name (e.g. Propranolol 20mg)" required autocomplete="off" style="width: 100%; padding: 6px 8px; font-size: 11px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line-2); border-radius: 4px; color: inherit; margin-bottom: 6px;" />
+              <input type="text" id="newPlanMeta" placeholder="Instructions / Time (e.g. 1 Tablet · 14:00 with food)" autocomplete="off" style="width: 100%; padding: 6px 8px; font-size: 11px; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--line-2); border-radius: 4px; color: inherit; margin-bottom: 6px;" />
+              <div style="display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px;">
+                <button type="button" id="btnCancelPlan" class="mini-btn" style="background: transparent; border: 1px solid var(--line-2); color: var(--muted); cursor: pointer;">Cancel</button>
+                <button type="submit" class="mini-btn" style="background: var(--petrol); color: #fff; cursor: pointer;">Save Item</button>
               </div>
-              <div class="plan-row">
-                <input type="checkbox" id="taskDose">
-                <div class="plan-row__body">
-                  <label class="plan-row__name" id="taskDoseLabel" for="taskDose">Evening dose</label>
-                  <p class="plan-row__meta">As prescribed · around 20:00</p>
-                </div>
-                <span class="plan-row__tag" id="taskDoseTag">Due</span>
-              </div>
+            </form>
+
+            <div class="plan-list" id="planList">
+              <!-- Rendered dynamically from user care plan -->
             </div>
             <div class="hydration-block">
               <div class="hydration-head">
@@ -1280,7 +1273,7 @@
             </div>
             <div class="k-last"><span>14-day trend</span><span>Target ≥ 3.5</span></div>
             <div class="k-readings" id="kReadings"></div>
-            <div class="k-actions">
+            <div class="k-actions" style="display: none;">
               <button class="btn btn-outline btn-block" id="logKCard" type="button">Log a reading</button>
             </div>
           </article>

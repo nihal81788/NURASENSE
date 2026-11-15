@@ -553,6 +553,8 @@ body.app-mode { background: var(--ground); }
 .plan-row__name.is-done { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
 .plan-row__meta { margin-top: 1px; font-size: 10px; line-height: 1.4; color: var(--muted); }
 .plan-row__tag { padding-top: 3px; font-family: var(--font-mono); font-size: 8.5px; color: var(--muted); white-space: nowrap; }
+.plan-row__del { background: none; border: none; color: var(--muted); opacity: 0.5; font-size: 16px; line-height: 1; padding: 1px 4px; cursor: pointer; border-radius: 4px; transition: opacity 150ms ease, color 150ms ease; }
+.plan-row__del:hover { opacity: 1; color: #ef4444; }
 .hydration-block { margin-top: 2px; padding: 10px 0 2px; border-top: 1px solid var(--line-2); }
 .hydration-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
 .hydration-head strong { font-family: var(--font-mono); font-size: 11px; font-weight: 500; }

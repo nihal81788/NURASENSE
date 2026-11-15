@@ -33,7 +33,17 @@ export const dashState = {
   ],
   alertSeq: 3,
   homeScroll: 0,
-  lastTrigger: null
+  lastTrigger: null,
+  carePlan: (() => {
+    try {
+      const saved = localStorage.getItem('nurasense_care_plan');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return [
+      { id: 'plan_k', name: 'Morning potassium', meta: 'Potassium chloride ER 20 mEq · 08:00', done: true },
+      { id: 'plan_dose', name: 'Evening dose', meta: 'As prescribed · around 20:00', done: false }
+    ];
+  })()
 };
 
 export const TREND_DATA = {
@@ -349,13 +359,16 @@ export function addAlert(title, detail, score) {
   renderNotif();
 }
 
+export function saveCarePlan() {
+  try {
+    localStorage.setItem('nurasense_care_plan', JSON.stringify(dashState.carePlan));
+  } catch (e) {
+    console.warn('Failed to save care plan:', e);
+  }
+}
+
 export function renderPlan() {
-  const taskK = document.getElementById('taskK');
-  const taskDose = document.getElementById('taskDose');
-  const taskKLabel = document.getElementById('taskKLabel');
-  const taskDoseLabel = document.getElementById('taskDoseLabel');
-  const taskKTag = document.getElementById('taskKTag');
-  const taskDoseTag = document.getElementById('taskDoseTag');
+  const planList = document.getElementById('planList');
   const planProgress = document.getElementById('planProgress');
   const hydrationValue = document.getElementById('hydrationValue');
   const hydrationFill = document.getElementById('hydrationFill');
@@ -365,24 +378,81 @@ export function renderPlan() {
   const vitalsHydrationFill = document.getElementById('vitalsHydrationFill');
   const hydrationFlag = document.getElementById('vitalsHydrationFlag');
 
-  if (!taskK || !planProgress) return;
+  if (planList) {
+    planList.innerHTML = '';
+    dashState.carePlan.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'plan-row';
+      row.dataset.id = item.id;
 
-  const done = (taskK.checked ? 1 : 0) + (taskDose.checked ? 1 : 0) + (dashState.hydration >= 2.5 ? 1 : 0);
-  planProgress.textContent = done + ' of 3 done';
-  taskKLabel.classList.toggle('is-done', taskK.checked);
-  taskDoseLabel.classList.toggle('is-done', taskDose.checked);
-  taskKTag.textContent = taskK.checked ? 'Taken' : 'Due';
-  taskDoseTag.textContent = taskDose.checked ? 'Taken' : 'Due';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = 'task_' + item.id;
+      checkbox.checked = Boolean(item.done);
+      checkbox.addEventListener('change', () => {
+        item.done = checkbox.checked;
+        saveCarePlan();
+        renderPlan();
+      });
 
-  const pct = Math.min(100, (dashState.hydration / 2.5) * 100);
-  hydrationValue.textContent = dashState.hydration.toFixed(1) + ' / 2.5 L';
-  hydrationFill.style.width = pct + '%';
-  hydrationBar.setAttribute('aria-valuenow', dashState.hydration.toFixed(1));
-  addWater.disabled = dashState.hydration >= 2.5;
-  addWater.textContent = dashState.hydration >= 2.5 ? 'Goal met' : '+250 ml';
+      const body = document.createElement('div');
+      body.className = 'plan-row__body';
+
+      const label = document.createElement('label');
+      label.className = 'plan-row__name' + (item.done ? ' is-done' : '');
+      label.htmlFor = 'task_' + item.id;
+      label.textContent = item.name;
+
+      const meta = document.createElement('p');
+      meta.className = 'plan-row__meta';
+      meta.textContent = item.meta || 'Daily care plan item';
+
+      body.appendChild(label);
+      body.appendChild(meta);
+
+      const tag = document.createElement('span');
+      tag.className = 'plan-row__tag';
+      tag.textContent = item.done ? 'Taken' : 'Due';
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'plan-row__del';
+      delBtn.title = 'Remove item';
+      delBtn.setAttribute('aria-label', `Remove ${item.name}`);
+      delBtn.innerHTML = '&times;';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dashState.carePlan = dashState.carePlan.filter(p => p.id !== item.id);
+        saveCarePlan();
+        renderPlan();
+      });
+
+      row.appendChild(checkbox);
+      row.appendChild(body);
+      row.appendChild(tag);
+      row.appendChild(delBtn);
+
+      planList.appendChild(row);
+    });
+  }
+
+  const doneCount = dashState.carePlan.filter(p => p.done).length;
+  const totalCount = dashState.carePlan.length;
+  if (planProgress) {
+    planProgress.textContent = `${doneCount} of ${totalCount} done`;
+  }
+
+  if (hydrationValue && hydrationFill && hydrationBar && addWater) {
+    const pct = Math.min(100, (dashState.hydration / 2.5) * 100);
+    hydrationValue.textContent = dashState.hydration.toFixed(1) + ' / 2.5 L';
+    hydrationFill.style.width = pct + '%';
+    hydrationBar.setAttribute('aria-valuenow', dashState.hydration.toFixed(1));
+    addWater.disabled = dashState.hydration >= 2.5;
+    addWater.textContent = dashState.hydration >= 2.5 ? 'Goal met' : '+250 ml';
+  }
 
   if (vitalsHydrationValue) vitalsHydrationValue.textContent = dashState.hydration.toFixed(1);
-  if (vitalsHydrationFill) vitalsHydrationFill.style.width = pct + '%';
+  if (vitalsHydrationFill) vitalsHydrationFill.style.width = Math.min(100, (dashState.hydration / 2.5) * 100) + '%';
   if (hydrationFlag) {
     const goalMet = dashState.hydration >= 2.5;
     hydrationFlag.textContent = goalMet ? 'Goal met' : 'Behind';
@@ -670,13 +740,55 @@ export function initDashboardListeners() {
     });
   }
 
-  /* care plan tasks & hydration */
-  const taskK = document.getElementById('taskK');
-  const taskDose = document.getElementById('taskDose');
+  /* care plan: custom medicine or task addition */
+  const btnToggleAddPlan = document.getElementById('btnToggleAddPlan');
+  const addPlanForm = document.getElementById('addPlanForm');
+  const btnCancelPlan = document.getElementById('btnCancelPlan');
+  const newPlanName = document.getElementById('newPlanName');
+  const newPlanMeta = document.getElementById('newPlanMeta');
   const addWater = document.getElementById('addWater');
 
-  if (taskK) taskK.addEventListener('change', renderPlan);
-  if (taskDose) taskDose.addEventListener('change', renderPlan);
+  if (btnToggleAddPlan && addPlanForm) {
+    btnToggleAddPlan.addEventListener('click', () => {
+      const isHidden = addPlanForm.style.display === 'none';
+      addPlanForm.style.display = isHidden ? 'block' : 'none';
+      if (isHidden && newPlanName) {
+        newPlanName.focus();
+      }
+    });
+  }
+
+  if (btnCancelPlan && addPlanForm) {
+    btnCancelPlan.addEventListener('click', () => {
+      addPlanForm.style.display = 'none';
+      addPlanForm.reset();
+    });
+  }
+
+  if (addPlanForm) {
+    addPlanForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = (newPlanName?.value || '').trim();
+      const meta = (newPlanMeta?.value || '').trim();
+      if (!name) return;
+
+      const newItem = {
+        id: 'plan_' + Date.now(),
+        name: name,
+        meta: meta || 'Daily care plan item',
+        done: false
+      };
+
+      dashState.carePlan.push(newItem);
+      saveCarePlan();
+      renderPlan();
+
+      addPlanForm.reset();
+      addPlanForm.style.display = 'none';
+      showToast(`Added "${name}" to care plan.`, 'success');
+    });
+  }
+
   if (addWater) {
     addWater.addEventListener('click', function () {
       if (dashState.hydration >= 2.5) return;
