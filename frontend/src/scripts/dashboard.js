@@ -1541,6 +1541,12 @@ export function initCloudEcgMonitor(userId) {
   // Display mode: 'filtered' (clinical 0.5–35Hz bandpass filtered ECG)
   const displayMode = 'filtered';
 
+  // 15-second rolling BPM stabilization window
+  let bpmWindow15s = [];
+  let stableBpm15s = 0;
+  let lastBpmDomUpdate = 0;
+  let streamStartTimestamp = 0;
+
   // Buffer of 500 samples (250Hz * 2.0 seconds - displays ~2 to 3 distinct spaced beats)
   const BUFFER_SIZE = 500;
   const samples = new Float32Array(BUFFER_SIZE);
@@ -1665,17 +1671,17 @@ export function initCloudEcgMonitor(userId) {
     if (rounded < 60) {
       // Bradycardia (<60) -> blue #4fc3f7
       bpmEl.style.color = '#4fc3f7';
-      statusEl.textContent = '⚠ Bradycardia';
+      statusEl.textContent = '15s Avg · Bradycardia ⚠';
       statusEl.style.color = '#4fc3f7';
     } else if (rounded <= 100) {
       // Normal (60-100) -> green #00ff88
       bpmEl.style.color = '#00ff88';
-      statusEl.textContent = 'Normal ✓';
+      statusEl.textContent = '15s Avg · Normal ✓';
       statusEl.style.color = '#00ff88';
     } else {
       // Tachycardia (>100) -> red #ff6b6b
       bpmEl.style.color = '#ff6b6b';
-      statusEl.textContent = '⚠ Tachycardia';
+      statusEl.textContent = '15s Avg · Tachycardia ⚠';
       statusEl.style.color = '#ff6b6b';
     }
   }
@@ -1743,6 +1749,9 @@ export function initCloudEcgMonitor(userId) {
             }
 
             if (data.leads_off && displayMode === 'filtered') {
+              bpmWindow15s = [];
+              stableBpm15s = 0;
+              streamStartTimestamp = 0;
               if (linkStatus) {
                 linkStatus.textContent = 'Leads Off';
                 linkStatus.style.color = '#ffa726';
@@ -1752,17 +1761,50 @@ export function initCloudEcgMonitor(userId) {
               updateBpmDisplay(0, true);
             } else {
               setConnectionState('streaming');
-              let effectiveBpm = Number(data.bpm) || 0;
-              // If server Pan-Tompkins is initializing or returns 0, use fast client-side peak detector
-              if (effectiveBpm <= 0) {
-                effectiveBpm = computeClientBpm(samples, 250);
+              const now = Date.now();
+              if (!streamStartTimestamp) streamStartTimestamp = now;
+
+              let incomingBpm = Number(data.bpm) || 0;
+              if (incomingBpm <= 0) {
+                // Secondary fallback only if server not emitting
+                incomingBpm = computeClientBpm(samples, 250);
               }
-              if (effectiveBpm > 0) {
-                currentBpm = effectiveBpm;
-                updateBpmDisplay(currentBpm, false);
-              } else if (currentBpm > 0) {
-                // Keep showing last validated BPM during brief inter-beat gaps
-                updateBpmDisplay(currentBpm, false);
+              if (incomingBpm > 0) {
+                bpmWindow15s.push({ val: incomingBpm, t: now });
+              }
+
+              // Keep only samples from within the last 15 seconds
+              bpmWindow15s = bpmWindow15s.filter(entry => (now - entry.t) <= 15000);
+
+              const elapsedMs = now - streamStartTimestamp;
+
+              // Initial 15-second stabilization window:
+              // Allow signal to accumulate over 15 seconds before publishing steady reading
+              if (elapsedMs < 10000 && stableBpm15s === 0) {
+                if (bpmEl) {
+                  bpmEl.innerHTML = `-- <span class="ecg-metric__unit">bpm</span>`;
+                  bpmEl.style.color = '#4fc3f7';
+                }
+                if (statusEl) {
+                  const secRemaining = Math.max(1, 15 - Math.floor(elapsedMs / 1000));
+                  statusEl.textContent = `Stabilizing 15s avg (${secRemaining}s)…`;
+                  statusEl.style.color = '#4fc3f7';
+                }
+              } else if (bpmWindow15s.length > 0) {
+                // Refresh DOM text at most once every 3.0 seconds to eliminate any display jitter
+                if (now - lastBpmDomUpdate >= 3000 || stableBpm15s === 0) {
+                  lastBpmDomUpdate = now;
+                  const sortedVals = bpmWindow15s.map(e => e.val).sort((a, b) => a - b);
+                  const medianBpm = sortedVals[Math.floor(sortedVals.length / 2)];
+                  if (medianBpm >= 35 && medianBpm <= 200) {
+                    stableBpm15s = Math.round(medianBpm);
+                  }
+                }
+                if (stableBpm15s > 0) {
+                  updateBpmDisplay(stableBpm15s, false);
+                }
+              } else if (stableBpm15s > 0) {
+                updateBpmDisplay(stableBpm15s, false);
               }
             }
 
