@@ -672,6 +672,36 @@ async def get_alert_history(
     }
 
 
+@app.get("/alerts/{user_id}/status")
+async def get_alert_status(user_id: str):
+    """
+    Returns diagnostics on alert channels (Fast2SMS, Twilio, EmailJS)
+    and cooldown status for the patient.
+    """
+    return {
+        "status": "ok",
+        "user_id": user_id,
+        "fast2sms": {
+            "configured": bool(alert_system.fast2sms_api_key),
+            "key_length": len(alert_system.fast2sms_api_key),
+            "last_debug": alert_system.last_sms_debug or ("Configured" if alert_system.fast2sms_api_key else "Missing FAST2SMS_API_KEY")
+        },
+        "twilio": {
+            "configured": bool(alert_system.twilio_client or (alert_system.twilio_account_sid and alert_system.twilio_auth_token)),
+            "from_number": alert_system.twilio_phone_number or "Missing TWILIO_PHONE_NUMBER",
+            "last_debug": alert_system.last_call_debug or "Idle"
+        },
+        "emailjs": {
+            "configured": bool(alert_system.emailjs_public_key),
+            "last_debug": alert_system.last_email_debug or "Idle"
+        },
+        "cooldown": {
+            "active": alert_system.is_cooldown_active(user_id),
+            "remaining_seconds": max(0, int(alert_system.cooldown_seconds - (time.time() - alert_system.cooldown_tracker.get(user_id, 0.0))))
+        }
+    }
+
+
 @app.post("/alerts/{user_id}/test")
 async def test_alert_dispatch(
     user_id: str,

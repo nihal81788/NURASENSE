@@ -888,9 +888,12 @@ export function initDashboardListeners() {
         const resp = await fetch(`${cleanHost}/alerts/${userId}/test`, { method: 'POST' });
         const resJson = await resp.json();
         if (resJson.status === 'cooldown_active') {
-          showToast(`Cooldown active: ${resJson.remaining_seconds}s remaining before next alert.`, 'warn');
+          showToast(`Cooldown active: ${resJson.remaining_seconds}s remaining. Resetting cooldown…`, 'warn');
+          await fetch(`${cleanHost}/alerts/${userId}/reset-cooldown`, { method: 'POST' });
         } else {
-          showToast(`Test alert sent! Fast2SMS: ${resJson.sms_sent ? 'Sent' : 'Skipped'}, Twilio: ${resJson.call_sent ? 'Called' : 'Skipped'}`, 'success');
+          const smsStatus = resJson.sms_sent ? '✅ SMS Sent' : `⚠️ SMS: ${resJson.sms_debug || 'Skipped'}`;
+          const callStatus = resJson.call_sent ? '✅ Twilio Call Placed' : `⚠️ Call: ${resJson.call_debug || 'Skipped'}`;
+          showToast(`${smsStatus} | ${callStatus}`, (resJson.sms_sent || resJson.call_sent) ? 'success' : 'warn');
           fetchAlertHistory(userId);
           triggerLiveCriticalAlert(2.9);
         }
