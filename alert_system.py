@@ -125,13 +125,16 @@ class AlertSystem:
         # Fast2SMS requires short messages for single-credit dispatch. Truncate if too long.
         safe_message = message[:159] if len(message) > 160 else message
 
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                # 1. Attempt standard POST request
                 headers = {
                     "authorization": self.fast2sms_api_key,
-                    "Authorization": self.fast2sms_api_key,
                     "Content-Type": "application/json",
-                    "Accept": "application/json"
+                    "Accept": "application/json",
+                    "User-Agent": user_agent
                 }
                 body = {
                     "route": "q",
@@ -149,15 +152,43 @@ class AlertSystem:
 
                 # Fast2SMS returns: {"return": true, "request_id": "...", "message": ["SMS sent successfully."]}
                 if resp.status_code == 200 and data.get("return") is True:
-                    success_msg = f"Dispatched to {numbers_str} (Request ID: {data.get('request_id', 'ok')})"
-                    print(f"[AlertSystem] Fast2SMS alert successfully sent: {success_msg}")
+                    req_id = data.get("request_id", "ok")
+                    success_msg = f"SMS sent via POST to {numbers_str} (Req: {req_id})"
+                    print(f"[AlertSystem] {success_msg}")
+                    self.last_sms_debug = success_msg
+                    return True, success_msg
+
+                # 2. If POST fails (e.g. Cloudflare WAF 400 or payload issue), fall back to Fast2SMS GET request
+                print(f"[AlertSystem] Fast2SMS POST gave HTTP {resp.status_code}. Retrying with GET...")
+                get_params = {
+                    "authorization": self.fast2sms_api_key,
+                    "route": "q",
+                    "message": safe_message,
+                    "language": "english",
+                    "flash": "0",
+                    "numbers": numbers_str
+                }
+                resp_get = await client.get(
+                    "https://www.fast2sms.com/dev/bulkV2",
+                    params=get_params,
+                    headers={"User-Agent": user_agent, "Accept": "application/json"}
+                )
+                try:
+                    data_get = resp_get.json()
+                except Exception:
+                    data_get = {}
+
+                if resp_get.status_code == 200 and data_get.get("return") is True:
+                    req_id = data_get.get("request_id", "ok")
+                    success_msg = f"SMS sent via GET fallback to {numbers_str} (Req: {req_id})"
+                    print(f"[AlertSystem] {success_msg}")
                     self.last_sms_debug = success_msg
                     return True, success_msg
                 else:
-                    err_detail = data.get("message") or resp.text or f"HTTP {resp.status_code}"
+                    err_detail = data_get.get("message") or data.get("message") or resp_get.text or f"HTTP {resp_get.status_code}"
                     if isinstance(err_detail, list):
                         err_detail = ", ".join(str(x) for x in err_detail)
-                    err_msg = f"Fast2SMS API rejected (HTTP {resp.status_code}): {err_detail}"
+                    err_msg = f"Fast2SMS API rejected (HTTP {resp_get.status_code}): {err_detail}"
                     print(f"[AlertSystem] {err_msg}")
                     self.last_sms_debug = err_msg
                     return False, err_msg
