@@ -380,7 +380,7 @@ class AlertSystem:
         ]
         patient_phone = patient_contacts[0]["phone"] if patient_contacts else (sms_phones[0] if sms_phones else "")
 
-        # 2. Fast2SMS dispatch
+        # 2. Fast2SMS dispatch (with optional Twilio SMS fallback)
         sms_sent = False
         sms_debug = "No phone numbers registered"
         if sms_phones:
@@ -390,6 +390,32 @@ class AlertSystem:
                 f"High risk of Thyrotoxic Periodic Paralysis (TPP) attack.{loc_str} Please assist immediately."
             )
             sms_sent, sms_debug = await self.send_sms_fast2sms(sms_phones, sms_text)
+
+            # Fallback to Twilio SMS if Fast2SMS was blocked (e.g. uncharged wallet)
+            if not sms_sent and self.twilio_client and self.twilio_phone_number:
+                print(f"[AlertSystem] Fast2SMS failed ({sms_debug}). Attempting Twilio SMS fallback...")
+                try:
+                    loop = asyncio.get_running_loop()
+                    for ph in sms_phones:
+                        e164 = str(ph).strip()
+                        if not e164.startswith("+"):
+                            e164 = f"+91{e164}" if len(e164) == 10 else f"+{e164}"
+                        await loop.run_in_executor(
+                            None,
+                            lambda p=e164: self.twilio_client.messages.create(
+                                body=sms_text,
+                                to=p,
+                                from_=self.twilio_phone_number
+                            )
+                        )
+                    sms_sent = True
+                    sms_debug = f"Delivered via Twilio SMS fallback (Fast2SMS required ₹100 recharge)"
+                    print(f"[AlertSystem] {sms_debug}")
+                except Exception as ex:
+                    print(f"[AlertSystem] Twilio SMS fallback note: {ex}")
+                    # Keep original Fast2SMS explanation if Twilio SMS also fails
+                    if "100 INR" not in sms_debug:
+                        sms_debug += f" | Twilio SMS: {ex}"
 
         # 3. Twilio Voice Call dispatch
         call_sent = False
