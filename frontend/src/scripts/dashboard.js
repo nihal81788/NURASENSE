@@ -823,7 +823,7 @@ export function initDashboardListeners() {
           return;
         }
 
-        const { error: insertErr } = await supabase
+        let { error: insertErr } = await supabase
           .from('emergency_contacts')
           .insert({
             user_id: userId,
@@ -833,6 +833,21 @@ export function initDashboardListeners() {
             relationship,
             is_patient: isPatient
           });
+
+        // Graceful fallback if is_patient column is not yet present in schema cache
+        if (insertErr && (insertErr.message.includes('is_patient') || insertErr.code === 'PGRST204')) {
+          const fallbackRel = isPatient ? 'Self (Patient)' : relationship;
+          const retry = await supabase
+            .from('emergency_contacts')
+            .insert({
+              user_id: userId,
+              name,
+              phone,
+              email: email || null,
+              relationship: fallbackRel
+            });
+          insertErr = retry.error;
+        }
 
         if (insertErr) {
           if (contactFormStatus) {

@@ -16,6 +16,13 @@ create table if not exists public.emergency_contacts (
   created_at timestamptz default now()
 );
 
+-- Ensure is_patient column exists if table was already created earlier:
+alter table public.emergency_contacts
+  add column if not exists is_patient boolean default false;
+
+-- Notify PostgREST to reload its schema cache immediately
+notify pgrst, 'reload schema';
+
 -- Index for fast user queries
 create index if not exists idx_emergency_contacts_user_id on public.emergency_contacts(user_id);
 
