@@ -1025,6 +1025,28 @@ export function initDashboardListeners() {
     });
   }
 
+  const btnResetCooldown = document.getElementById('btnResetCooldown');
+  if (btnResetCooldown) {
+    btnResetCooldown.addEventListener('click', async () => {
+      btnResetCooldown.disabled = true;
+      btnResetCooldown.textContent = '↺ Resetting…';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || '0d6ccd26-016f-4223-825a-1d4c8c7bcf60';
+        const railwayHost = localStorage.getItem('nurasense_railway_url') || 'https://nurasense-production.up.railway.app';
+        const cleanHost = railwayHost.replace(/\/+$/, '');
+
+        await fetch(`${cleanHost}/alerts/${userId}/reset-cooldown`, { method: 'POST' });
+        showToast('30-minute cooldown reset! You can send alerts immediately.', 'success');
+      } catch (err) {
+        showToast('Error resetting cooldown: ' + err.message, 'danger');
+      } finally {
+        btnResetCooldown.disabled = false;
+        btnResetCooldown.textContent = '↺ Reset Cooldown';
+      }
+    });
+  }
+
   /* navigation rail and bottom tab bar */
   document.querySelectorAll('.app-nav__btn, .app-tab').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -1514,30 +1536,10 @@ export function initCloudEcgMonitor(userId) {
   const liveDot = document.getElementById('ecgLiveDot');
   const linkStatus = document.getElementById('liveEcgLinkStatus');
   const ecgState = document.getElementById('ecgState');
-  const rawAdcEl = document.getElementById('liveRawAdcVal');
-  const btnModeRaw = document.getElementById('btnModeRaw');
-  const btnModeFiltered = document.getElementById('btnModeFiltered');
   const specsLabel = document.getElementById('ecgSpecsLabel');
 
-  // Display mode: 'raw' (default as requested: plots raw ESP32 data) or 'filtered'
-  let displayMode = 'raw';
-
-  if (btnModeRaw) {
-    btnModeRaw.addEventListener('click', () => {
-      displayMode = 'raw';
-      btnModeRaw.classList.add('is-active');
-      if (btnModeFiltered) btnModeFiltered.classList.remove('is-active');
-      if (specsLabel) specsLabel.textContent = 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY';
-    });
-  }
-  if (btnModeFiltered) {
-    btnModeFiltered.addEventListener('click', () => {
-      displayMode = 'filtered';
-      btnModeFiltered.classList.add('is-active');
-      if (btnModeRaw) btnModeRaw.classList.remove('is-active');
-      if (specsLabel) specsLabel.textContent = '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass';
-    });
-  }
+  // Display mode: 'filtered' (clinical 0.5–35Hz bandpass filtered ECG)
+  const displayMode = 'filtered';
 
   // Buffer of 500 samples (250Hz * 2.0 seconds - displays ~2 to 3 distinct spaced beats)
   const BUFFER_SIZE = 500;
@@ -1586,12 +1588,22 @@ export function initCloudEcgMonitor(userId) {
     const ptp = max - min;
     if (ptp < 0.15) return 0;
     const thresh = min + ptp * 0.60;
-    const minSamples = Math.floor(0.32 * fs);
+    // 420ms minimum blanking window (prevents T-wave oversensing, supports up to 142 bpm)
+    const minSamples = Math.floor(0.42 * fs);
     const pks = [];
     for (let i = 1; i < buf.length - 1; i++) {
       if (buf[i] > thresh && buf[i] > buf[i - 1] && buf[i] >= buf[i + 1]) {
-        if (pks.length === 0 || (i - pks[pks.length - 1]) >= minSamples) {
+        if (pks.length === 0) {
           pks.push(i);
+        } else {
+          const prev = pks[pks.length - 1];
+          const dist = i - prev;
+          if (dist >= minSamples) {
+            pks.push(i);
+          } else if (dist < Math.floor(0.50 * fs) && buf[i] > buf[prev]) {
+            // If peaks are within 500ms and current peak is taller, replace previous
+            pks[pks.length - 1] = i;
+          }
         }
       }
     }
@@ -1601,8 +1613,25 @@ export function initCloudEcgMonitor(userId) {
         const rr = (pks[i] - pks[i - 1]) / fs;
         if (rr >= 0.31 && rr <= 1.70) rrs.push(rr);
       }
-      if (rrs.length > 0) {
-        const avg = rrs.reduce((a, b) => a + b, 0) / rrs.length;
+      // Alternating coupled-beat pair merging (recovers true RR interval if R-T double counting occurs)
+      const cleaned = [];
+      let idx = 0;
+      while (idx < rrs.length) {
+        if (idx + 1 < rrs.length && rrs[idx] < 0.46 && rrs[idx + 1] > 0.60) {
+          const merged = rrs[idx] + rrs[idx + 1];
+          if (merged >= 0.50 && merged <= 1.80) cleaned.push(merged);
+          idx += 2;
+        } else if (idx + 1 < rrs.length && rrs[idx] > 0.60 && rrs[idx + 1] < 0.46) {
+          const merged = rrs[idx] + rrs[idx + 1];
+          if (merged >= 0.50 && merged <= 1.80) cleaned.push(merged);
+          idx += 2;
+        } else {
+          cleaned.push(rrs[idx]);
+          idx += 1;
+        }
+      }
+      if (cleaned.length > 0) {
+        const avg = cleaned.reduce((a, b) => a + b, 0) / cleaned.length;
         const b = Math.round(60 / avg);
         if (b >= 35 && b <= 200) return b;
       }
@@ -1701,14 +1730,7 @@ export function initCloudEcgMonitor(userId) {
           const data = JSON.parse(event.data);
           const rawBatch = data.raw_samples || data.samples;
           const filteredBatch = data.filtered_samples;
-
-          // Update live Raw ADC level readout
-          if (rawAdcEl && rawBatch && rawBatch.length > 0) {
-            const latestRaw = Math.round(rawBatch[rawBatch.length - 1]);
-            rawAdcEl.innerHTML = `${latestRaw} <span class="ecg-metric__unit">cts</span>`;
-          }
-
-          const currentBatch = (displayMode === 'filtered' && filteredBatch) ? filteredBatch : rawBatch;
+          const currentBatch = filteredBatch || rawBatch;
 
           if (currentBatch && Array.isArray(currentBatch)) {
             isReceivingSignal = true;

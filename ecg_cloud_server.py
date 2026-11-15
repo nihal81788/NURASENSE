@@ -305,17 +305,50 @@ class DeviceSignalState:
 
         # 5. Adaptive thresholding
         threshold = np.mean(integrated) + 0.6 * np.std(integrated)
-        # Refractory period: minimum 320ms between beats (supports up to 187 bpm)
-        min_distance = int(0.32 * self.fs)
+        # Refractory period: minimum 420ms between beats (supports up to 142 bpm and suppresses T-wave oversensing)
+        min_distance = int(0.42 * self.fs)
 
         peaks, _ = signal.find_peaks(integrated, height=threshold, distance=min_distance)
 
-        if len(peaks) >= 2:
-            rr_intervals = np.diff(peaks) / float(self.fs)
+        # Secondary T-wave suppression: if two peaks are within 500ms, compare raw ECG height
+        pruned_peaks = []
+        for pk in peaks:
+            if not pruned_peaks:
+                pruned_peaks.append(pk)
+            else:
+                prev_pk = pruned_peaks[-1]
+                if (pk - prev_pk) < int(0.50 * self.fs):
+                    # Peak within 500ms: likely an R-T couple. Keep the taller peak in the ECG signal
+                    if sig[pk] > sig[prev_pk]:
+                        pruned_peaks[-1] = pk
+                else:
+                    pruned_peaks.append(pk)
+
+        if len(pruned_peaks) >= 2:
+            rr_intervals = np.diff(pruned_peaks) / float(self.fs)
             # Physiological bounds check (35 - 190 BPM -> 0.31s - 1.70s)
             valid_rr = [float(r) for r in rr_intervals if 0.31 <= r <= 1.70]
 
-            for r in valid_rr:
+            # Alternating short/long pair detection (T-wave double counting compensation):
+            # If consecutive intervals alternate (e.g. ~0.33s and ~0.78s), sum each pair to recover true cardiac cycle (~1.11s)
+            cleaned_rr = []
+            i = 0
+            while i < len(valid_rr):
+                if i + 1 < len(valid_rr) and valid_rr[i] < 0.46 and valid_rr[i + 1] > 0.60:
+                    merged = valid_rr[i] + valid_rr[i + 1]
+                    if 0.50 <= merged <= 1.80:
+                        cleaned_rr.append(merged)
+                    i += 2
+                elif i + 1 < len(valid_rr) and valid_rr[i] > 0.60 and valid_rr[i + 1] < 0.46:
+                    merged = valid_rr[i] + valid_rr[i + 1]
+                    if 0.50 <= merged <= 1.80:
+                        cleaned_rr.append(merged)
+                    i += 2
+                else:
+                    cleaned_rr.append(valid_rr[i])
+                    i += 1
+
+            for r in cleaned_rr:
                 self.valid_rr_history.append(r)
 
             if len(self.valid_rr_history) >= 1:

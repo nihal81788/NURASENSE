@@ -1067,12 +1067,8 @@
             <div class="ecg-monitor" id="ecgMonitor">
               <div class="ecg-bar">
                 <span class="ecg-bar__live"><span class="live-dot" id="ecgLiveDot"></span><span id="ecgState">Waiting for signal...</span></span>
-                <span class="ecg-specs" id="ecgSpecsLabel">ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY</span>
-                <div class="ecg-mode-toggle" style="margin-left: auto; display: flex; gap: 6px;">
-                  <button type="button" class="mini-btn is-active" id="btnModeRaw" style="font-size: 11px; padding: 3px 8px;">Raw ADC</button>
-                  <button type="button" class="mini-btn" id="btnModeFiltered" style="font-size: 11px; padding: 3px 8px;">Filtered</button>
-                </div>
-                <button type="button" class="mini-btn js-open-pair-device">+ Pair ESP32</button>
+                <span class="ecg-specs" id="ecgSpecsLabel">250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass</span>
+                <button type="button" class="mini-btn js-open-pair-device" style="margin-left: auto;">+ Pair ESP32</button>
               </div>
               <canvas id="liveEcgCanvas" class="ecg-realtime-canvas" width="900" height="220" role="img" aria-label="Real-time ECG stream"></canvas>
             </div>
@@ -1092,11 +1088,6 @@
                 <span class="ecg-metric__label">HRV · RMSSD</span>
                 <span class="ecg-metric__value"><span class="vital-rmssd-val">31</span><span class="ecg-metric__unit">ms</span></span>
                 <span class="ecg-metric__note ecg-metric__note--warn">Autonomic tone</span>
-              </div>
-              <div class="ecg-metric">
-                <span class="ecg-metric__label">RAW ADC LEVEL</span>
-                <span class="ecg-metric__value" id="liveRawAdcVal">-- <span class="ecg-metric__unit">cts</span></span>
-                <span class="ecg-metric__note" id="liveRawAdcNote">12-bit (0–4095)</span>
               </div>
             </div>
           </article>
@@ -1348,8 +1339,11 @@
               </div>
             </div>
             <div class="care-actions" style="margin-top: 14px; display: flex; gap: 8px;">
-              <button class="btn btn-outline btn-block" id="btnTestAlert" type="button" style="font-size: 11.5px; border-color: rgba(255, 107, 107, 0.4); color: #ff6b6b;">
+              <button class="btn btn-outline" id="btnTestAlert" type="button" style="flex: 1; font-size: 11.5px; border-color: rgba(255, 107, 107, 0.4); color: #ff6b6b;">
                 🚨 Send Test Emergency Alert
+              </button>
+              <button class="btn btn-outline" id="btnResetCooldown" type="button" style="font-size: 11px; padding: 0 10px; border-color: rgba(255, 255, 255, 0.15); color: var(--muted);" title="Reset 30-min anti-spam cooldown for testing">
+                ↺ Reset Cooldown
               </button>
             </div>
             <p class="care-last" id="careLast">Automated alerts dispatch SMS via Fast2SMS, Twilio voice call & Google Maps location.</p>
