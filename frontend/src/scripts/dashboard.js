@@ -750,6 +750,144 @@ export function initDashboardListeners() {
     });
   }
 
+  /* Emergency Contacts modal & dispatch test */
+  const btnAddContact = document.getElementById('btnAddContact');
+  const contactDialog = document.getElementById('contactDialog');
+  const contactDialogClose = document.getElementById('contactDialogClose');
+  const contactForm = document.getElementById('contactForm');
+  const contactFormStatus = document.getElementById('contactFormStatus');
+  const contactSubmitBtn = document.getElementById('contactSubmitBtn');
+  const btnTestAlert = document.getElementById('btnTestAlert');
+
+  if (btnAddContact && contactDialog) {
+    btnAddContact.addEventListener('click', () => {
+      if (contactForm) contactForm.reset();
+      if (contactFormStatus) contactFormStatus.hidden = true;
+      if (!contactDialog.open) contactDialog.showModal();
+    });
+  }
+
+  if (contactDialogClose && contactDialog) {
+    contactDialogClose.addEventListener('click', () => contactDialog.close());
+  }
+
+  if (contactDialog) {
+    contactDialog.addEventListener('click', (e) => {
+      if (e.target === contactDialog) contactDialog.close();
+    });
+  }
+
+  if (contactForm) {
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('contactNameInput')?.value.trim();
+      const phone = document.getElementById('contactPhoneInput')?.value.trim();
+      const email = document.getElementById('contactEmailInput')?.value.trim();
+      const relationship = document.getElementById('contactRelSelect')?.value || 'Family';
+      const isPatient = document.getElementById('contactIsPatientCheck')?.checked || false;
+
+      if (!name || !phone) {
+        if (contactFormStatus) {
+          contactFormStatus.textContent = 'Name and phone number are required.';
+          contactFormStatus.className = 'pair-status-msg pair-status-msg--error';
+          contactFormStatus.hidden = false;
+        }
+        return;
+      }
+
+      if (contactSubmitBtn) {
+        contactSubmitBtn.disabled = true;
+        contactSubmitBtn.textContent = 'Saving…';
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id;
+        if (!userId) {
+          showToast('Please sign in to save emergency contacts.', 'warn');
+          return;
+        }
+
+        // Check count constraint: max 5 contacts
+        const { count, error: countErr } = await supabase
+          .from('emergency_contacts')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId);
+
+        if (!countErr && count >= 5) {
+          if (contactFormStatus) {
+            contactFormStatus.textContent = 'Maximum 5 emergency contacts allowed.';
+            contactFormStatus.className = 'pair-status-msg pair-status-msg--error';
+            contactFormStatus.hidden = false;
+          }
+          return;
+        }
+
+        const { error: insertErr } = await supabase
+          .from('emergency_contacts')
+          .insert({
+            user_id: userId,
+            name,
+            phone,
+            email: email || null,
+            relationship,
+            is_patient: isPatient
+          });
+
+        if (insertErr) {
+          if (contactFormStatus) {
+            contactFormStatus.textContent = 'Error: ' + insertErr.message;
+            contactFormStatus.className = 'pair-status-msg pair-status-msg--error';
+            contactFormStatus.hidden = false;
+          }
+        } else {
+          showToast(`Emergency contact ${name} added!`, 'success');
+          contactDialog.close();
+          fetchEmergencyContacts(userId);
+        }
+      } catch (err) {
+        if (contactFormStatus) {
+          contactFormStatus.textContent = 'Failed: ' + err.message;
+          contactFormStatus.className = 'pair-status-msg pair-status-msg--error';
+          contactFormStatus.hidden = false;
+        }
+      } finally {
+        if (contactSubmitBtn) {
+          contactSubmitBtn.disabled = false;
+          contactSubmitBtn.textContent = 'Save Contact';
+        }
+      }
+    });
+  }
+
+  if (btnTestAlert) {
+    btnTestAlert.addEventListener('click', async () => {
+      btnTestAlert.disabled = true;
+      btnTestAlert.textContent = '🚨 Dispatching test alert…';
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || '0d6ccd26-016f-4223-825a-1d4c8c7bcf60';
+        const railwayHost = localStorage.getItem('nurasense_railway_url') || 'https://nurasense-production.up.railway.app';
+        const cleanHost = railwayHost.replace(/\/+$/, '');
+
+        const resp = await fetch(`${cleanHost}/alerts/${userId}/test`, { method: 'POST' });
+        const resJson = await resp.json();
+        if (resJson.status === 'cooldown_active') {
+          showToast(`Cooldown active: ${resJson.remaining_seconds}s remaining before next alert.`, 'warn');
+        } else {
+          showToast(`Test alert sent! Fast2SMS: ${resJson.sms_sent ? 'Sent' : 'Skipped'}, Twilio: ${resJson.call_sent ? 'Called' : 'Skipped'}`, 'success');
+          fetchAlertHistory(userId);
+          triggerLiveCriticalAlert(2.9);
+        }
+      } catch (err) {
+        showToast('Test alert request error: ' + err.message, 'danger');
+      } finally {
+        btnTestAlert.disabled = false;
+        btnTestAlert.textContent = '🚨 Send Test Emergency Alert';
+      }
+    });
+  }
+
   /* navigation rail and bottom tab bar */
   document.querySelectorAll('.app-nav__btn, .app-tab').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -830,15 +968,25 @@ export async function checkDashboardAuth() {
 
     updateDashIdentity(name, avatar);
 
-    // Fetch potassium prediction history once on dashboard load after auth check
-    fetchKHistory();
+    // Fetch telemetry and emergency history once on dashboard load after auth check
+    const userId = session?.user?.id;
+    fetchKHistory(userId);
+    fetchAlertHistory(userId);
+    fetchEmergencyContacts(userId);
+    captureLocation();
 
-    // Subscribe to realtime updates on potassium_predictions table
+    // Subscribe to realtime updates on potassium_predictions, alert_logs & emergency_contacts
     try {
       supabase
         .channel('realtime_k_channel')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'potassium_predictions' }, () => {
           fetchKHistory();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alert_logs' }, () => {
+          fetchAlertHistory();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_contacts' }, () => {
+          fetchEmergencyContacts();
         })
         .subscribe();
     } catch (_) {}
@@ -921,6 +1069,291 @@ export function renderKHistory(predictions) {
       </div>
     `;
   }).join('');
+}
+
+/**
+ * Browser Geolocation Capture for Emergency Services
+ * Stores latitude & longitude in window._nurasenseLocation and transmits via WebSocket
+ */
+export async function captureLocation() {
+  if ('geolocation' in navigator) {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        window._nurasenseLocation = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        };
+        console.log('[Location] Geolocation captured:', window._nurasenseLocation);
+        if (window._nurasenseWs && window._nurasenseWs.readyState === WebSocket.OPEN) {
+          window._nurasenseWs.send(JSON.stringify({
+            type: 'location',
+            location: window._nurasenseLocation
+          }));
+        }
+      },
+      err => {
+        console.warn('Geolocation capture notice:', err.message);
+        window._nurasenseLocation = null;
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }
+}
+
+/**
+ * Emergency Alert System History & Live Banner
+ */
+export function triggerLiveCriticalAlert(potassiumMmol) {
+  const banner = document.getElementById('criticalAlertBanner');
+  const alertText = document.getElementById('criticalAlertText');
+  if (banner) {
+    banner.style.display = 'block';
+    if (alertText && potassiumMmol) {
+      alertText.textContent = `CRITICAL: Potassium level dropped to ${Number(potassiumMmol).toFixed(1)} mmol/L. Fast2SMS to family, automated Twilio voice reminder, and emergency email dispatched.`;
+    }
+  }
+  showToast(`🚨 CRITICAL EMERGENCY ALERT SENT: K+ ${potassiumMmol ? Number(potassiumMmol).toFixed(1) : ''} mmol/L! Family notified with live location.`, 'danger');
+}
+
+export async function fetchAlertHistory(explicitUserId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = explicitUserId || session?.user?.id;
+
+    const railwayHost = localStorage.getItem('nurasense_railway_url') || 'https://nurasense-production.up.railway.app';
+    const cleanHost = railwayHost.replace(/\/+$/, '');
+
+    let alertLogs = [];
+    if (userId) {
+      try {
+        const resp = await fetch(`${cleanHost}/alerts/${userId}/history`, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (resp.ok) {
+          const resJson = await resp.json();
+          alertLogs = resJson.history || [];
+        }
+      } catch (_) {}
+
+      if (!alertLogs.length) {
+        const { data, error } = await supabase
+          .from('alert_logs')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (!error && data) {
+          alertLogs = data;
+        }
+      }
+    }
+
+    renderAlertHistory(alertLogs);
+  } catch (err) {
+    console.warn('fetchAlertHistory note:', err);
+  }
+}
+
+export function renderAlertHistory(alertLogs) {
+  const alertList = document.getElementById('alertList');
+  const alertCount = document.getElementById('alertCount');
+  if (!alertList) return;
+
+  clearNode(alertList);
+
+  if (!alertLogs || alertLogs.length === 0) {
+    const emptyRow = document.createElement('div');
+    emptyRow.className = 'alert-row';
+    emptyRow.innerHTML = `
+      <span class="alert-body" style="grid-column: 1 / -1; padding: 12px 0; color: var(--muted); font-size: 12px;">
+        No emergency alerts triggered yet. System monitoring 24/7.
+      </span>
+    `;
+    alertList.appendChild(emptyRow);
+    if (alertCount) {
+      alertCount.textContent = 'All clear';
+      alertCount.classList.remove('tag--sample');
+    }
+    return;
+  }
+
+  if (alertCount) {
+    alertCount.textContent = `${alertLogs.length} logged`;
+    alertCount.classList.add('tag--sample');
+  }
+
+  alertLogs.forEach(alert => {
+    const row = document.createElement('div');
+    row.className = 'alert-row';
+
+    const d = new Date(alert.created_at || Date.now());
+    const dStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const tStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'alert-time';
+    timeSpan.textContent = `${dStr} · ${tStr}`;
+
+    const bodySpan = document.createElement('span');
+    bodySpan.className = 'alert-body';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'alert-title';
+    titleSpan.innerHTML = `🚨 Hypokalemia Alert · <strong style="color:#ff6b6b">${Number(alert.potassium_level).toFixed(1)} mmol/L</strong>`;
+
+    const detailSpan = document.createElement('span');
+    detailSpan.className = 'alert-detail';
+    detailSpan.textContent = `${alert.contacts_notified || 0} family/contacts notified`;
+
+    // Channels tags
+    const channelDiv = document.createElement('div');
+    channelDiv.className = 'alert-channels';
+
+    const smsTag = document.createElement('span');
+    smsTag.className = `alert-tag ${alert.sms_sent ? 'alert-tag--sms' : 'alert-tag--off'}`;
+    smsTag.textContent = alert.sms_sent ? 'SMS ✓' : 'SMS —';
+
+    const callTag = document.createElement('span');
+    callTag.className = `alert-tag ${alert.call_sent ? 'alert-tag--call' : 'alert-tag--off'}`;
+    callTag.textContent = alert.call_sent ? 'Voice Call ✓' : 'Call —';
+
+    const emailTag = document.createElement('span');
+    emailTag.className = `alert-tag ${alert.email_sent ? 'alert-tag--email' : 'alert-tag--off'}`;
+    emailTag.textContent = alert.email_sent ? 'Email ✓' : 'Email —';
+
+    channelDiv.appendChild(smsTag);
+    channelDiv.appendChild(callTag);
+    channelDiv.appendChild(emailTag);
+
+    bodySpan.appendChild(titleSpan);
+    bodySpan.appendChild(detailSpan);
+    bodySpan.appendChild(channelDiv);
+
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'alert-score';
+    scoreSpan.style.color = '#ff6b6b';
+    scoreSpan.textContent = 'HIGH RISK';
+
+    row.appendChild(timeSpan);
+    row.appendChild(bodySpan);
+    row.appendChild(scoreSpan);
+    alertList.appendChild(row);
+  });
+}
+
+/**
+ * Emergency Contacts Management (Supabase)
+ */
+export async function fetchEmergencyContacts(explicitUserId) {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = explicitUserId || session?.user?.id;
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('emergency_contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn('fetchEmergencyContacts error:', error.message);
+      return;
+    }
+
+    renderEmergencyContacts(data || []);
+  } catch (err) {
+    console.warn('fetchEmergencyContacts exception:', err);
+  }
+}
+
+export function renderEmergencyContacts(contacts) {
+  const list = document.getElementById('emergencyContactsList');
+  if (!list) return;
+
+  clearNode(list);
+
+  if (!contacts || contacts.length === 0) {
+    const emptyRow = document.createElement('div');
+    emptyRow.className = 'care-row';
+    emptyRow.innerHTML = `
+      <span class="care-avatar" aria-hidden="true">+</span>
+      <span class="od-stack" style="--od-gap:0">
+        <span class="care-name">No emergency contacts saved</span>
+        <span class="care-role">Add 1 to 5 contacts for automated Fast2SMS & Twilio dispatch</span>
+      </span>
+    `;
+    list.appendChild(emptyRow);
+    return;
+  }
+
+  contacts.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'contact-item';
+
+    const meta = document.createElement('div');
+    meta.className = 'contact-meta';
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'contact-name-row';
+
+    const name = document.createElement('span');
+    name.className = 'contact-name';
+    name.textContent = c.name;
+    nameRow.appendChild(name);
+
+    if (c.relationship) {
+      const relBadge = document.createElement('span');
+      relBadge.className = 'contact-badge';
+      relBadge.textContent = c.relationship;
+      nameRow.appendChild(relBadge);
+    }
+
+    if (c.is_patient) {
+      const patBadge = document.createElement('span');
+      patBadge.className = 'contact-badge contact-badge--patient';
+      patBadge.textContent = 'Voice Call Target';
+      nameRow.appendChild(patBadge);
+    }
+
+    const detail = document.createElement('span');
+    detail.className = 'contact-detail';
+    detail.textContent = `${c.phone}${c.email ? ' · ' + c.email : ''}`;
+
+    meta.appendChild(nameRow);
+    meta.appendChild(detail);
+
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'contact-del-btn';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', async () => {
+      if (confirm(`Remove ${c.name} from emergency contacts?`)) {
+        await deleteEmergencyContact(c.id);
+      }
+    });
+
+    row.appendChild(meta);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  });
+}
+
+export async function deleteEmergencyContact(contactId) {
+  try {
+    const { error } = await supabase
+      .from('emergency_contacts')
+      .delete()
+      .eq('id', contactId);
+    if (error) {
+      showToast('Error removing contact: ' + error.message, 'danger');
+    } else {
+      showToast('Contact removed.', 'success');
+      fetchEmergencyContacts();
+    }
+  } catch (err) {
+    showToast('Failed to remove contact.', 'danger');
+  }
 }
 
 /**
@@ -1079,7 +1512,16 @@ export function initCloudEcgMonitor(userId) {
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
+        window._nurasenseWs = ws;
         setConnectionState('connected');
+        if (window._nurasenseLocation) {
+          try {
+            ws.send(JSON.stringify({
+              type: 'location',
+              location: window._nurasenseLocation
+            }));
+          } catch (_) {}
+        }
       };
 
       ws.onmessage = (event) => {
@@ -1152,6 +1594,12 @@ export function initCloudEcgMonitor(userId) {
                 showToast(`⚠️ Low potassium detected: ${Number(k.mmol).toFixed(1)} mmol/L — ECG suggests hypokalemia`, 'danger');
                 dashState.riskScore = Math.min(100, (dashState.riskScore || 0) + 15);
               }
+            }
+
+            // Real-time Emergency Alert System Trigger
+            if (data.alert_triggered) {
+              triggerLiveCriticalAlert(data.potassium?.mmol);
+              fetchAlertHistory(userId);
             }
           }
         } catch (err) {}
@@ -1320,6 +1768,9 @@ export function initCloudEcgMonitor(userId) {
         connectWs();
       }
       fetchKHistory();
+      fetchAlertHistory();
+      fetchEmergencyContacts();
+      captureLocation();
     }
   };
 
@@ -1337,6 +1788,9 @@ export function initCloudEcgMonitor(userId) {
   // Start WebSocket connection, fetch latest recorded telemetry & render loop
   connectWs();
   fetchKHistory(userId);
+  fetchAlertHistory(userId);
+  fetchEmergencyContacts(userId);
+  captureLocation();
   animFrameId = requestAnimationFrame(renderEcgWaveform);
 
   // Return teardown function if needed

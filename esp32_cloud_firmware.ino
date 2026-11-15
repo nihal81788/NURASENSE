@@ -141,7 +141,7 @@ void sendBatchToCloud(int* samples, int count) {
     requestBody += String(samples[i]);
     if (i < count - 1) requestBody += ",";
   }
-  requestBody += "]}";
+  requestBody += "],\"location\":null}";
 
   // Persistent Keep-Alive connection: does NOT renegotiate SSL handshake on every batch!
   if (!isHttpConnected) {

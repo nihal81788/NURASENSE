@@ -1217,11 +1217,20 @@
           <article class="db-card card-history" id="dash-history" aria-labelledby="historyTitle">
             <header class="db-head">
               <div>
-                <h2 class="db-title" id="historyTitle">Recent alerts</h2>
-                <p class="db-sub">Acknowledged alerts stay here for your clinician</p>
+                <h2 class="db-title" id="historyTitle">Emergency Alert History</h2>
+                <p class="db-sub">Multi-channel dispatches (Fast2SMS, Twilio Voice Call, EmailJS)</p>
               </div>
-              <span class="tag" id="alertCount">1 open</span>
+              <span class="tag" id="alertCount">All clear</span>
             </header>
+
+            <!-- Live Critical Alert Banner (flashes when hypokalemia alert fires live) -->
+            <div id="criticalAlertBanner" class="critical-alert-banner" style="display: none;">
+              <div class="critical-alert-content">
+                <strong>🔴 CRITICAL ALERT SENT</strong>
+                <p id="criticalAlertText">Potassium level critically low (&lt; 3.2 mmol/L). Emergency SMS, voice call reminder, and family emails dispatched.</p>
+              </div>
+            </div>
+
             <div class="alert-list" id="alertList"></div>
           </article>
         </div>
@@ -1331,45 +1340,26 @@
           <article class="db-card card-care" id="dash-care" aria-labelledby="careTitle">
             <header class="db-head">
               <div>
-                <h2 class="db-title" id="careTitle">Care circle</h2>
-                <p class="db-sub">People on call if something changes</p>
+                <h2 class="db-title" id="careTitle">Emergency Contacts</h2>
+                <p class="db-sub">Family & caregivers notified during a TPP episode (1–5 contacts)</p>
               </div>
+              <button type="button" class="mini-btn js-open-add-contact" id="btnAddContact" style="font-size: 11px; padding: 4px 8px;">+ Add Contact</button>
             </header>
-            <div class="care-list">
+            <div class="care-list" id="emergencyContactsList">
               <div class="care-row">
-                <span class="care-avatar" aria-hidden="true">AR</span>
+                <span class="care-avatar" aria-hidden="true">⏳</span>
                 <span class="od-stack" style="--od-gap:0">
-                  <span class="care-name">Dr. Anaya Rao</span>
-                  <span class="care-role">Endocrinologist</span>
+                  <span class="care-name">Syncing emergency contacts…</span>
+                  <span class="care-role">Connected to Supabase</span>
                 </span>
-                <span class="care-status">On call</span>
-              </div>
-              <div class="care-row">
-                <span class="care-avatar" aria-hidden="true">PN</span>
-                <span class="od-stack" style="--od-gap:0">
-                  <span class="care-name">Priya Nair</span>
-                  <span class="care-role">TPP nurse</span>
-                </span>
-                <span class="care-status">Online</span>
-              </div>
-              <div class="care-row">
-                <span class="care-avatar" aria-hidden="true">AS</span>
-                <span class="od-stack" style="--od-gap:0">
-                  <span class="care-name">Arjun Shah</span>
-                  <span class="care-role">Partner · notified</span>
-                </span>
-                <span class="care-status">Nearby</span>
               </div>
             </div>
-            <div class="care-actions">
-              <button class="btn btn-outline btn-block" id="messageBtn" type="button">
-                <svg class="od-icon" style="--od-icon-size:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 12a8 8 0 0 1-8 8H8l-4 2.5V18a8 8 0 1 1 17-6Z"/>
-                </svg>
-                Message care team
+            <div class="care-actions" style="margin-top: 14px; display: flex; gap: 8px;">
+              <button class="btn btn-outline btn-block" id="btnTestAlert" type="button" style="font-size: 11.5px; border-color: rgba(255, 107, 107, 0.4); color: #ff6b6b;">
+                🚨 Send Test Emergency Alert
               </button>
             </div>
-            <p class="care-last" id="careLast">Dr. Anaya Rao replies within about an hour.</p>
+            <p class="care-last" id="careLast">Automated alerts dispatch SMS via Fast2SMS, Twilio voice call & Google Maps location.</p>
           </article>
 
           <article class="db-card safety-card card-safety" id="dash-safety" aria-labelledby="safetyTitle">
@@ -1608,6 +1598,58 @@
       </div>
       <div id="pairedDevicesList" class="paired-devices-list"></div>
     </div>
+  </div>
+</dialog>
+
+<!-- Emergency Contact Modal -->
+<dialog id="contactDialog" aria-labelledby="contactDialogTitle">
+  <div class="dialog-card dialog-card--contact">
+    <button class="dialog-close" id="contactDialogClose" type="button" aria-label="Close dialog">
+      <svg class="od-icon" style="--od-icon-size:19px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6 6 18"/>
+      </svg>
+    </button>
+
+    <div class="pair-card-head">
+      <p class="dialog-eyebrow">Emergency Protocol</p>
+      <h2 class="dialog-title" id="contactDialogTitle">Add Emergency Contact</h2>
+      <p class="dialog-sub">This person will receive an automated SMS and email with your location if your potassium level drops below 3.2 mmol/L.</p>
+    </div>
+
+    <form id="contactForm" class="dash-form" novalidate style="margin-top: 16px;">
+      <div class="form-field">
+        <label for="contactNameInput">Full Name *</label>
+        <input id="contactNameInput" name="name" type="text" placeholder="e.g. Priya Sharma" required autocomplete="name">
+      </div>
+      <div class="form-field">
+        <label for="contactPhoneInput">Mobile Phone (+91 recommended) *</label>
+        <input id="contactPhoneInput" name="phone" type="tel" placeholder="e.g. +919876543210" required autocomplete="tel">
+        <p class="field-help">Fast2SMS will deliver critical alerts to this number.</p>
+      </div>
+      <div class="form-field">
+        <label for="contactEmailInput">Email Address</label>
+        <input id="contactEmailInput" name="email" type="email" placeholder="e.g. priya@gmail.com" autocomplete="email">
+      </div>
+      <div class="form-field">
+        <label for="contactRelSelect">Relationship</label>
+        <select id="contactRelSelect" name="relationship">
+          <option value="Family">Family / Relative</option>
+          <option value="Spouse/Partner">Spouse / Partner</option>
+          <option value="Parent">Parent</option>
+          <option value="Doctor">Doctor / Clinician</option>
+          <option value="Caregiver">Caregiver / Nurse</option>
+          <option value="Self (Patient)">Self (Patient Phone for Twilio Voice Call)</option>
+        </select>
+      </div>
+      <div class="form-field" style="margin-top: 6px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+          <input type="checkbox" id="contactIsPatientCheck" style="width: auto; min-height: auto;">
+          <span>This is the patient's phone (receive automated Twilio voice call reminder)</span>
+        </label>
+      </div>
+      <div id="contactFormStatus" class="pair-status-msg" hidden></div>
+      <button type="submit" class="btn btn-primary btn-block" id="contactSubmitBtn" style="margin-top: 12px;">Save Contact</button>
+    </form>
   </div>
 </dialog>
 

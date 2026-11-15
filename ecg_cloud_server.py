@@ -29,6 +29,7 @@ import numpy as np
 import scipy.signal as signal
 from supabase import create_client, Client
 from potassium_ml import PotassiumPredictor
+from alert_system import alert_system
 
 load_dotenv()
 
@@ -387,9 +388,13 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# In-memory latest known user location from browser geolocation: user_id -> {"lat": float, "lng": float}
+latest_user_locations: Dict[str, dict] = {}
+
 
 class IngestBatchRequest(BaseModel):
-    samples: List[float] = Field(..., description="Array of ECG sample counts, typically 10 samples @ 250Hz")
+    samples: List[float] = Field(..., description="Array of ECG sample counts, typically 10-75 samples @ 250Hz")
+    location: Optional[dict] = Field(None, description="Optional GPS coordinates: {'lat': float, 'lng': float}")
 
 
 @app.get("/")
@@ -433,6 +438,10 @@ async def ingest_ecg_batch(
             detail="Device token not registered to any user. Pair device in NuraSense dashboard."
         )
 
+    # Cache location if provided in request
+    if payload.location:
+        latest_user_locations[user_id] = payload.location
+
     # Get or create per-device DSP filter state
     if x_device_token not in device_states:
         device_states[x_device_token] = DeviceSignalState(fs=250)
@@ -463,7 +472,8 @@ async def ingest_ecg_batch(
                         device_id=device_db_id,
                         buf_arr=buf_arr,
                         bpm=bpm,
-                        state=state
+                        state=state,
+                        location=payload.location
                     )
                 )
 
@@ -508,12 +518,14 @@ async def run_potassium_inference_async(
     device_id: Optional[str],
     buf_arr: np.ndarray,
     bpm: float,
-    state: DeviceSignalState
+    state: DeviceSignalState,
+    location: Optional[dict] = None
 ):
     """
     Runs Kardio-Net ML inference in an asynchronous background thread pool.
     Guarantees the real-time /ingest endpoint responds instantly (<5ms)
     without being blocked by PyTorch convolution execution.
+    If hypokalemia (<3.2 mmol/L) is detected, dispatches emergency alerts.
     """
     try:
         loop = asyncio.get_running_loop()
@@ -530,6 +542,18 @@ async def run_potassium_inference_async(
             k_pred=k_pred
         )
 
+        # Trigger multi-channel emergency alert system if critically low potassium
+        if k_pred.get("trigger_alert"):
+            loc = location or latest_user_locations.get(user_id) or {}
+            asyncio.create_task(
+                alert_system.send_all_alerts(
+                    user_id=user_id,
+                    potassium_mmol=k_pred["potassium_mmol"],
+                    location=loc,
+                    supabase_client=supabase_client
+                )
+            )
+
         # Broadcast live potassium prediction immediately to dashboard subscribers
         await manager.broadcast(user_id, {
             "potassium": {
@@ -538,6 +562,7 @@ async def run_potassium_inference_async(
                 "confidence": k_pred["confidence"],
                 "alert": k_pred["trigger_alert"]
             },
+            "alert_triggered": bool(k_pred.get("trigger_alert")),
             "timestamp": time.time()
         })
     except Exception as e:
@@ -629,11 +654,48 @@ async def get_potassium_history(
     return user_history[:20]
 
 
+@app.get("/alerts/{user_id}/history")
+async def get_alert_history(
+    user_id: str,
+    x_device_token: Optional[str] = Header(None)
+):
+    """
+    Returns last 10 rows from alert_logs table for this user.
+    Falls back to in-memory history if Supabase is unavailable.
+    """
+    history = await alert_system.get_history(user_id, supabase_client)
+    return {
+        "status": "ok",
+        "user_id": user_id,
+        "count": len(history),
+        "history": history
+    }
+
+
+@app.post("/alerts/{user_id}/test")
+async def test_alert_dispatch(
+    user_id: str,
+    x_device_token: Optional[str] = Header(None)
+):
+    """
+    Manual testing endpoint: Dispatches test alert via Twilio, Fast2SMS and EmailJS
+    using the patient's registered emergency contacts.
+    """
+    loc = latest_user_locations.get(user_id) or {"lat": 28.6139, "lng": 77.2090}
+    res = await alert_system.send_all_alerts(
+        user_id=user_id,
+        potassium_mmol=2.9,
+        location=loc,
+        supabase_client=supabase_client
+    )
+    return res
+
+
 @app.websocket("/ws/{user_id}")
 async def websocket_dashboard_endpoint(websocket: WebSocket, user_id: str):
     """
     WebSocket endpoint for NuraSense Patient Dashboard.
-    Streams live 250Hz ECG samples and Pan-Tompkins BPM for the specified user.
+    Streams live 250Hz ECG samples, Pan-Tompkins BPM, and receives browser geolocation.
     """
     await manager.connect(user_id, websocket)
     try:
@@ -645,11 +707,23 @@ async def websocket_dashboard_endpoint(websocket: WebSocket, user_id: str):
             "sampling_rate": 250
         })
 
-        # Keep connection open and handle incoming messages/pings
+        # Keep connection open and handle incoming messages/pings/geolocation updates
         while True:
             text = await websocket.receive_text()
             if text == "ping":
                 await websocket.send_text("pong")
+            else:
+                try:
+                    import json
+                    msg = json.loads(text)
+                    if isinstance(msg, dict):
+                        if msg.get("type") == "location" and "location" in msg:
+                            latest_user_locations[user_id] = msg["location"]
+                            print(f"[Location] Updated browser location for user {user_id}: {msg['location']}")
+                        elif msg.get("type") == "ping":
+                            await websocket.send_text("pong")
+                except Exception:
+                    pass
     except WebSocketDisconnect:
         await manager.disconnect(user_id, websocket)
     except Exception as e:
