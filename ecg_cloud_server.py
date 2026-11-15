@@ -193,29 +193,21 @@ class DeviceSignalState:
             raw_arr = np.asarray(self.raw_history, dtype=np.float32)
 
             # 1. Rail saturation: inputs pulled to VDD (~4095) or GND (~0)
-            is_railed = (np.mean(raw_arr > 3950.0) > 0.25) or (np.mean(raw_arr < 90.0) > 0.25)
+            is_railed = (np.mean(raw_arr > 4020.0) > 0.40) or (np.mean(raw_arr < 40.0) > 0.40)
 
-            # 2. Peak-to-peak amplitude check:
-            # Living human ECG Lead I has sharp QRS excursion (>80 ADC counts).
-            # Open-circuit flatline or gentle baseline drift has ptp < 45 ADC counts.
+            # 2. Pure open-circuit flatline (ADC totally disconnected or powered down)
             raw_ptp = float(np.ptp(raw_arr))
-            is_flat = raw_ptp < 45.0
+            is_flat = raw_ptp < 15.0
 
-            # 3. Floating antenna noise check:
-            # Floating leads in air pick up tiny ambient noise (std < 14 counts out of 4096).
-            # In real human ECG, QRS complexes generate std > 25 counts and ptp > 80 counts.
-            raw_std = float(np.std(raw_arr))
-            is_floating = raw_std < 14.0
-
-            leads_off_detected = is_railed or is_flat or is_floating
+            leads_off_detected = is_railed or is_flat
 
             if leads_off_detected:
                 self.leads_off_counter = min(8, self.leads_off_counter + 1)
-                if self.leads_off_counter >= 3:
+                if self.leads_off_counter >= 5:
                     self.is_leads_off = True
             else:
-                self.leads_off_counter = max(0, self.leads_off_counter - 2)
-                if self.leads_off_counter == 0:
+                self.leads_off_counter = max(0, self.leads_off_counter - 1)
+                if self.leads_off_counter <= 1:
                     self.is_leads_off = False
         else:
             # Not enough data yet - keep current state
@@ -273,26 +265,24 @@ class DeviceSignalState:
         """
         Pan-Tompkins Algorithm with multi-beat RR outlier rejection & exponential damping:
         1. Gated by leads-off detection: returns 0.0 immediately if leads are disconnected.
-        2. Requires minimum physiological QRS energy (std > 0.08, integrated peak > 0.03)
-           to reject floating antenna hum.
-        3. 5.0-second window (1250 samples) for high-confidence multi-beat analysis
-        4. Dedicated 6-18 Hz bandpass for QRS energy isolation (eliminates T-wave false triggers)
-        5. Derivative + Squaring + 120ms Moving Window Integration
-        6. Adaptive thresholding with 380ms refractory blanking (max 158 BPM)
-        7. Interquartile / Trimmed mean over rolling RR history to reject noise & motion spikes
-        8. Exponential smoothing for rock-solid, clinically steady displayed BPM
+        2. 5.0-second window (up to 1250 samples) for continuous multi-beat analysis.
+        3. Dedicated 6-18 Hz bandpass for QRS energy isolation (eliminates T-wave false triggers).
+        4. Derivative + Squaring + 120ms Moving Window Integration.
+        5. Adaptive thresholding with 320ms refractory blanking (supports 35 to 190 BPM).
+        6. Moving median over rolling RR history to reject noise & motion spikes.
+        7. Exponential smoothing for rock-solid, clinically steady displayed BPM.
         """
         if self.is_leads_off:
             return 0.0
 
-        if len(self.filtered_history) < 500:
+        if len(self.filtered_history) < 250:
             return self.last_bpm
 
         # Analyze up to last 1250 samples (5.0s)
         sig = np.array(list(self.filtered_history)[-1250:], dtype=np.float32)
 
-        # Minimum physiological signal excursion gate (suppresses faint noise)
-        if float(np.std(sig)) < 0.08 or float(np.ptp(sig)) < 0.25:
+        # Basic signal excursion gate (suppresses absolute dead flatlines)
+        if float(np.std(sig)) < 0.02 or float(np.ptp(sig)) < 0.08:
             return 0.0
 
         # 1. Dedicated QRS bandpass (6 - 18 Hz)
@@ -310,39 +300,37 @@ class DeviceSignalState:
         win_size = max(2, int(0.12 * self.fs))
         integrated = np.convolve(squared, np.ones(win_size) / win_size, mode="same")
 
-        if float(np.max(integrated)) < 0.03:
+        if float(np.max(integrated)) < 0.0005:
             return 0.0
 
         # 5. Adaptive thresholding
-        threshold = np.mean(integrated) + 1.2 * np.std(integrated)
-        # Refractory period: minimum 380ms between beats (max 158 bpm)
-        min_distance = int(0.38 * self.fs)
+        threshold = np.mean(integrated) + 0.6 * np.std(integrated)
+        # Refractory period: minimum 320ms between beats (supports up to 187 bpm)
+        min_distance = int(0.32 * self.fs)
 
         peaks, _ = signal.find_peaks(integrated, height=threshold, distance=min_distance)
 
-        if len(peaks) >= 3:
+        if len(peaks) >= 2:
             rr_intervals = np.diff(peaks) / float(self.fs)
-            # Physiological bounds check (40 - 160 BPM -> 0.38s - 1.50s)
-            valid_rr = [float(r) for r in rr_intervals if 0.38 <= r <= 1.50]
+            # Physiological bounds check (35 - 190 BPM -> 0.31s - 1.70s)
+            valid_rr = [float(r) for r in rr_intervals if 0.31 <= r <= 1.70]
 
             for r in valid_rr:
                 self.valid_rr_history.append(r)
 
-            if len(self.valid_rr_history) >= 3:
-                # Trimmed mean: drop highest and lowest to eliminate outlier/noise beats
-                sorted_rr = sorted(list(self.valid_rr_history))
-                trimmed = sorted_rr[1:-1] if len(sorted_rr) >= 4 else sorted_rr
-                avg_rr = float(np.mean(trimmed))
+            if len(self.valid_rr_history) >= 1:
+                # Robust median of recent RR intervals
+                avg_rr = float(np.median(self.valid_rr_history))
 
                 if avg_rr > 0:
                     instant_bpm = 60.0 / avg_rr
 
-                    if 35.0 <= instant_bpm <= 180.0:
-                        if self.smoothed_bpm is None:
+                    if 35.0 <= instant_bpm <= 200.0:
+                        if self.smoothed_bpm is None or self.smoothed_bpm == 0.0:
                             self.smoothed_bpm = instant_bpm
                         else:
-                            # Exponential smoothing: 85% previous, 15% new (gentle, steady glide)
-                            self.smoothed_bpm = 0.85 * self.smoothed_bpm + 0.15 * instant_bpm
+                            # Exponential smoothing: 80% previous, 20% new
+                            self.smoothed_bpm = 0.80 * self.smoothed_bpm + 0.20 * instant_bpm
 
                         self.last_bpm = round(self.smoothed_bpm, 1)
 

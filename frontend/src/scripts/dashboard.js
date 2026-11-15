@@ -1576,6 +1576,40 @@ export function initCloudEcgMonitor(userId) {
     ? 'ws://localhost:8765/ws/' + userId
     : `wss://${railwayHost}/ws/${userId}`;
 
+  function computeClientBpm(buf, fs = 250) {
+    if (!buf || buf.length < 200) return 0;
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < buf.length; i++) {
+      if (buf[i] < min) min = buf[i];
+      if (buf[i] > max) max = buf[i];
+    }
+    const ptp = max - min;
+    if (ptp < 0.15) return 0;
+    const thresh = min + ptp * 0.60;
+    const minSamples = Math.floor(0.32 * fs);
+    const pks = [];
+    for (let i = 1; i < buf.length - 1; i++) {
+      if (buf[i] > thresh && buf[i] > buf[i - 1] && buf[i] >= buf[i + 1]) {
+        if (pks.length === 0 || (i - pks[pks.length - 1]) >= minSamples) {
+          pks.push(i);
+        }
+      }
+    }
+    if (pks.length >= 2) {
+      const rrs = [];
+      for (let i = 1; i < pks.length; i++) {
+        const rr = (pks[i] - pks[i - 1]) / fs;
+        if (rr >= 0.31 && rr <= 1.70) rrs.push(rr);
+      }
+      if (rrs.length > 0) {
+        const avg = rrs.reduce((a, b) => a + b, 0) / rrs.length;
+        const b = Math.round(60 / avg);
+        if (b >= 35 && b <= 200) return b;
+      }
+    }
+    return 0;
+  }
+
   function updateBpmDisplay(bpm, isLeadsOff = false) {
     if (!bpmEl || !statusEl) return;
 
@@ -1597,6 +1631,7 @@ export function initCloudEcgMonitor(userId) {
 
     const rounded = Math.round(bpm);
     bpmEl.innerHTML = `${rounded} <span class="ecg-metric__unit">bpm</span>`;
+    document.querySelectorAll('.vital-hr-val').forEach(el => { el.textContent = rounded; });
 
     if (rounded < 60) {
       // Bradycardia (<60) -> blue #4fc3f7
@@ -1695,8 +1730,16 @@ export function initCloudEcgMonitor(userId) {
               updateBpmDisplay(0, true);
             } else {
               setConnectionState('streaming');
-              if (data.bpm !== undefined && data.bpm !== null) {
-                currentBpm = data.bpm;
+              let effectiveBpm = Number(data.bpm) || 0;
+              // If server Pan-Tompkins is initializing or returns 0, use fast client-side peak detector
+              if (effectiveBpm <= 0) {
+                effectiveBpm = computeClientBpm(samples, 250);
+              }
+              if (effectiveBpm > 0) {
+                currentBpm = effectiveBpm;
+                updateBpmDisplay(currentBpm, false);
+              } else if (currentBpm > 0) {
+                // Keep showing last validated BPM during brief inter-beat gaps
                 updateBpmDisplay(currentBpm, false);
               }
             }
