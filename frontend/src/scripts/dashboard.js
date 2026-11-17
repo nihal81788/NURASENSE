@@ -1538,8 +1538,28 @@ export function initCloudEcgMonitor(userId) {
   const ecgState = document.getElementById('ecgState');
   const specsLabel = document.getElementById('ecgSpecsLabel');
 
-  // Display mode: 'filtered' (clinical 0.5–35Hz bandpass filtered ECG)
-  const displayMode = 'filtered';
+  const btnModeRaw = document.getElementById('btnModeRaw');
+  const btnModeFiltered = document.getElementById('btnModeFiltered');
+
+  // Display mode: 'filtered' (default: real clinical bandpass filtered ECG) or 'raw' (real direct ESP32 ADC)
+  let displayMode = 'filtered';
+
+  if (btnModeRaw) {
+    btnModeRaw.addEventListener('click', () => {
+      displayMode = 'raw';
+      btnModeRaw.classList.add('is-active');
+      if (btnModeFiltered) btnModeFiltered.classList.remove('is-active');
+      if (specsLabel) specsLabel.textContent = 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY';
+    });
+  }
+  if (btnModeFiltered) {
+    btnModeFiltered.addEventListener('click', () => {
+      displayMode = 'filtered';
+      btnModeFiltered.classList.add('is-active');
+      if (btnModeRaw) btnModeRaw.classList.remove('is-active');
+      if (specsLabel) specsLabel.textContent = '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass';
+    });
+  }
 
   // 15-second rolling BPM stabilization window
   let bpmWindow15s = [];
@@ -1736,7 +1756,7 @@ export function initCloudEcgMonitor(userId) {
           const data = JSON.parse(event.data);
           const rawBatch = data.raw_samples || data.samples;
           const filteredBatch = data.filtered_samples;
-          const currentBatch = filteredBatch || rawBatch;
+          const currentBatch = (displayMode === 'raw' && rawBatch) ? rawBatch : (filteredBatch || rawBatch);
 
           if (currentBatch && Array.isArray(currentBatch)) {
             isReceivingSignal = true;

@@ -1068,7 +1068,11 @@
               <div class="ecg-bar">
                 <span class="ecg-bar__live"><span class="live-dot" id="ecgLiveDot"></span><span id="ecgState">Waiting for signal...</span></span>
                 <span class="ecg-specs" id="ecgSpecsLabel">250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass</span>
-                <button type="button" class="mini-btn js-open-pair-device" style="margin-left: auto;">+ Pair ESP32</button>
+                <div class="ecg-mode-toggle" style="margin-left: auto; display: flex; gap: 6px;">
+                  <button type="button" class="mini-btn is-active" id="btnModeFiltered" style="font-size: 11px; padding: 3px 8px;">Filtered</button>
+                  <button type="button" class="mini-btn" id="btnModeRaw" style="font-size: 11px; padding: 3px 8px;">Raw ADC</button>
+                </div>
+                <button type="button" class="mini-btn js-open-pair-device" style="margin-left: 8px;">+ Pair ESP32</button>
               </div>
               <canvas id="liveEcgCanvas" class="ecg-realtime-canvas" width="900" height="220" role="img" aria-label="Real-time ECG stream"></canvas>
             </div>
