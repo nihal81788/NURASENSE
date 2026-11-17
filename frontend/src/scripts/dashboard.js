@@ -1879,10 +1879,12 @@ export function initCloudEcgMonitor(userId) {
     if (timestamp - lastDrawTime < 38) return;
     lastDrawTime = timestamp;
 
-    // Signal timeout: if no samples in 6 seconds (ONLY when tab is visible)
-    if (!document.hidden && isReceivingSignal && Date.now() - lastSignalTime > 6000) {
+    // Signal timeout: when ESP32 stops streaming to Railway backend, stop ECG graph immediately
+    if (!document.hidden && isReceivingSignal && Date.now() - lastSignalTime > 2000) {
       isReceivingSignal = false;
-      if (ecgState) ecgState.textContent = 'Waiting for signal...';
+      samples.fill(0);
+      setConnectionState('offline');
+      if (ecgState) ecgState.textContent = 'Device offline';
       updateBpmDisplay(0);
     }
 
@@ -1997,10 +1999,12 @@ export function initCloudEcgMonitor(userId) {
     ctx.stroke();
     ctx.restore();
 
-    // 4. Sweep line / Cursor indicator at leading edge
-    const cursorX = width - 4;
-    ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
-    ctx.fillRect(cursorX, 0, 2, height);
+    // 4. Sweep line / Cursor indicator at leading edge (active only when actively receiving signal)
+    if (isReceivingSignal) {
+      const cursorX = width - 4;
+      ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
+      ctx.fillRect(cursorX, 0, 2, height);
+    }
   }
 
   // Handle tab switching & window blur/focus so streaming never freezes or resets
