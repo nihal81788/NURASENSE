@@ -1079,14 +1079,14 @@
 
             <div class="ecg-readouts">
               <div class="ecg-metric ecg-metric--primary">
-                <span class="ecg-metric__label">Heart rate</span>
-                <span class="ecg-metric__value" id="liveEcgBpm">-- <span class="ecg-metric__unit">bpm</span></span>
-                <span class="ecg-metric__note" id="liveEcgStatus">Waiting for signal...</span>
-              </div>
-              <div class="ecg-metric">
                 <span class="ecg-metric__label">Hardware Link</span>
                 <span class="ecg-metric__value" id="liveEcgLinkStatus" style="font-size: 20px;">Offline</span>
                 <span class="ecg-metric__note" id="liveEcgDeviceName">ESP32 Cloud Ingest</span>
+              </div>
+              <div class="ecg-metric">
+                <span class="ecg-metric__label">Sampling Rate</span>
+                <span class="ecg-metric__value">250 <span class="ecg-metric__unit">Hz</span></span>
+                <span class="ecg-metric__note" id="liveEcgSampleNote">4,000 µs interval</span>
               </div>
               <div class="ecg-metric">
                 <span class="ecg-metric__label">HRV · RMSSD</span>
