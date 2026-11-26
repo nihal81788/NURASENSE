@@ -7,6 +7,7 @@
 import { svgNode, clearNode, drawKChart, drawTrend } from './charts.js';
 import { showToast, setError, visible, focusAfterClose, currentTimeValue } from './modals.js';
 import { supabase } from './supabase.js';
+import { createDemoEcg } from './demoEcg.js';
 
 export const TRIGGER_META = [
   { key: 'meal', label: 'High-carb meal', pts: 8 },
@@ -1541,25 +1542,42 @@ export function initCloudEcgMonitor(userId) {
   const btnModeRaw = document.getElementById('btnModeRaw');
   const btnModeFiltered = document.getElementById('btnModeFiltered');
 
-  // Display mode: 'filtered' (default: real clinical bandpass filtered ECG) or 'raw' (real direct ESP32 ADC)
-  let displayMode = 'filtered';
+  const btnModeDemo = document.getElementById('btnModeDemo');
+  const subLabel = document.getElementById('liveEcgSub');
 
-  if (btnModeRaw) {
-    btnModeRaw.addEventListener('click', () => {
-      displayMode = 'raw';
-      btnModeRaw.classList.add('is-active');
-      if (btnModeFiltered) btnModeFiltered.classList.remove('is-active');
-      if (specsLabel) specsLabel.textContent = 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY';
+  // Display mode: 'filtered' (default: real clinical bandpass filtered ECG), 'raw' (real direct ESP32 ADC)
+  // or 'demo' (simulated trace, paced by incoming ESP32 packets; display only)
+  let displayMode = 'filtered';
+  const demoEcg = createDemoEcg({ fs: 250 });
+  let lastDemoBpmUpdate = 0;
+
+  const modes = [
+    ['filtered', btnModeFiltered, '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass'],
+    ['raw', btnModeRaw, 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY'],
+    ['demo', btnModeDemo, 'SIMULATED SIGNAL · NOT FROM YOUR SENSOR']
+  ];
+
+  modes.forEach(([mode, button, specs]) => {
+    if (!button) return;
+    button.addEventListener('click', () => {
+      if (displayMode === mode) return;
+      displayMode = mode;
+      modes.forEach(([, other]) => { if (other) other.classList.toggle('is-active', other === button); });
+      if (specsLabel) specsLabel.textContent = specs;
+      if (subLabel) {
+        subLabel.textContent = mode === 'demo'
+          ? 'Simulated signal · not from your sensor'
+          : 'Lead I · streaming from your sensor';
+      }
+      // Never leave generated and real samples on screen together
+      resetSignal();
+      if (isReceivingSignal) {
+        clearBpm('Waiting for signal...');
+      } else {
+        setConnectionState('offline');
+      }
     });
-  }
-  if (btnModeFiltered) {
-    btnModeFiltered.addEventListener('click', () => {
-      displayMode = 'filtered';
-      btnModeFiltered.classList.add('is-active');
-      if (btnModeRaw) btnModeRaw.classList.remove('is-active');
-      if (specsLabel) specsLabel.textContent = '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass';
-    });
-  }
+  });
 
   // 15-second rolling BPM stabilization window
   let bpmWindow15s = [];
@@ -1587,7 +1605,7 @@ export function initCloudEcgMonitor(userId) {
   if (ecgPauseBtn) {
     ecgPauseBtn.addEventListener('click', () => {
       isPaused = !isPaused;
-      if (ecgState) ecgState.textContent = isPaused ? 'Paused' : (isReceivingSignal ? 'Live' : 'Waiting for signal...');
+      if (ecgState) ecgState.textContent = isPaused ? 'Paused' : (isReceivingSignal ? 'Live' : 'Device offline');
       if (ecgPauseBtn) ecgPauseBtn.setAttribute('aria-pressed', isPaused ? 'true' : 'false');
       const pauseLabel = document.getElementById('ecgPauseLabel');
       if (pauseLabel) pauseLabel.textContent = isPaused ? 'Resume' : 'Pause';
@@ -1706,27 +1724,75 @@ export function initCloudEcgMonitor(userId) {
     }
   }
 
+  // Top-bar status follows the same device state as the ECG card
+  function setStreamPill(text, dotClass) {
+    const pillText = document.getElementById('streamPillText');
+    const pillDot = document.getElementById('streamPillDot');
+    if (pillText) pillText.textContent = text;
+    if (pillDot) pillDot.className = dotClass;
+  }
+
+  function pushSamples(batch) {
+    for (let i = 0; i < batch.length; i++) {
+      samples[sampleIndex] = batch[i];
+      sampleIndex = (sampleIndex + 1) % BUFFER_SIZE;
+    }
+  }
+
+  function resetSignal() {
+    samples.fill(0);
+    sampleIndex = 0;
+    bpmWindow15s = [];
+    stableBpm15s = 0;
+    streamStartTimestamp = 0;
+    lastDemoBpmUpdate = 0;
+  }
+
+  function clearBpm(message) {
+    if (bpmEl) {
+      bpmEl.innerHTML = `-- <span class="ecg-metric__unit">bpm</span>`;
+      bpmEl.style.color = 'var(--muted)';
+    }
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.color = 'var(--muted)';
+    }
+  }
+
+  // Simulated BPM stays on this card only: it is not copied to other vitals
+  function showDemoBpm(bpm) {
+    if (bpmEl) {
+      bpmEl.innerHTML = `${bpm} <span class="ecg-metric__unit">bpm</span>`;
+      bpmEl.style.color = '#ffa726';
+    }
+    if (statusEl) {
+      statusEl.textContent = 'Simulated';
+      statusEl.style.color = '#ffa726';
+    }
+  }
+
+  // No data from the ESP32: blank the graph and show the device as offline
+  function goOffline() {
+    isReceivingSignal = false;
+    resetSignal();
+    setConnectionState('offline');
+  }
+
   function setConnectionState(state) {
-    if (state === 'connected') {
-      if (linkStatus) linkStatus.textContent = 'Connected';
-      if (linkStatus) linkStatus.style.color = '#00ff88';
-      if (liveDot) liveDot.className = 'live-dot';
-      if (ecgState && !isPaused) ecgState.textContent = 'Waiting for signal...';
-    } else if (state === 'streaming') {
+    if (state === 'streaming') {
       if (linkStatus) linkStatus.textContent = 'Streaming';
       if (linkStatus) linkStatus.style.color = '#00ff88';
       if (liveDot) liveDot.className = 'live-dot active';
+      setStreamPill(displayMode === 'demo' ? 'Streaming · simulated' : 'Streaming · lead I', 'live-dot active');
       if (ecgState && !isPaused) ecgState.textContent = 'Live';
     } else {
       // Offline / disconnected
       if (linkStatus) linkStatus.textContent = 'Device offline';
       if (linkStatus) linkStatus.style.color = '#ff6b6b';
       if (liveDot) liveDot.className = 'live-dot offline';
-      if (ecgState && !isPaused) ecgState.textContent = 'Device offline';
-      if (statusEl) {
-        statusEl.textContent = 'Device offline';
-        statusEl.style.color = 'var(--muted)';
-      }
+      setStreamPill('Device offline', 'live-dot offline');
+      if (ecgState) ecgState.textContent = 'Device offline';
+      clearBpm('Device offline');
     }
   }
 
@@ -1740,7 +1806,8 @@ export function initCloudEcgMonitor(userId) {
 
       ws.onopen = () => {
         window._nurasenseWs = ws;
-        setConnectionState('connected');
+        // A server connection alone says nothing about the ESP32
+        setConnectionState('offline');
         if (window._nurasenseLocation) {
           try {
             ws.send(JSON.stringify({
@@ -1758,17 +1825,21 @@ export function initCloudEcgMonitor(userId) {
           const filteredBatch = data.filtered_samples;
           const currentBatch = (displayMode === 'raw' && rawBatch) ? rawBatch : (filteredBatch || rawBatch);
 
-          if (currentBatch && Array.isArray(currentBatch)) {
+          if (Array.isArray(currentBatch) && currentBatch.length > 0) {
             isReceivingSignal = true;
             lastSignalTime = Date.now();
 
             // Shift new batch of samples into rolling buffer
-            for (let i = 0; i < currentBatch.length; i++) {
-              samples[sampleIndex] = currentBatch[i];
-              sampleIndex = (sampleIndex + 1) % BUFFER_SIZE;
-            }
+            // (Demo mode uses only the batch length, to pace the simulated trace)
+            pushSamples(displayMode === 'demo' ? demoEcg.next(currentBatch.length) : currentBatch);
 
-            if (data.leads_off && displayMode === 'filtered') {
+            if (displayMode === 'demo') {
+              setConnectionState('streaming');
+              if (Date.now() - lastDemoBpmUpdate >= 1000) {
+                lastDemoBpmUpdate = Date.now();
+                showDemoBpm(demoEcg.bpm());
+              }
+            } else if (data.leads_off && displayMode === 'filtered') {
               bpmWindow15s = [];
               stableBpm15s = 0;
               streamStartTimestamp = 0;
@@ -1777,6 +1848,7 @@ export function initCloudEcgMonitor(userId) {
                 linkStatus.style.color = '#ffa726';
               }
               if (liveDot) liveDot.className = 'live-dot warning';
+              setStreamPill('Leads off', 'live-dot warning');
               if (ecgState && !isPaused) ecgState.textContent = 'Attach Electrodes';
               updateBpmDisplay(0, true);
             } else {
@@ -1870,8 +1942,7 @@ export function initCloudEcgMonitor(userId) {
       };
 
       ws.onclose = () => {
-        isReceivingSignal = false;
-        setConnectionState('offline');
+        goOffline();
         // Auto-reconnect WebSocket every 3s on disconnect
         clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(connectWs, 3000);
@@ -1893,7 +1964,7 @@ export function initCloudEcgMonitor(userId) {
   function renderEcgWaveform(timestamp) {
     animFrameId = requestAnimationFrame(renderEcgWaveform);
 
-    if (isPaused || !canvas) return;
+    if (!canvas) return;
 
     // Rate-limit redraw to ~40ms (25 FPS is sufficient and smooth)
     if (timestamp - lastDrawTime < 38) return;
@@ -1901,12 +1972,11 @@ export function initCloudEcgMonitor(userId) {
 
     // Signal timeout: when ESP32 stops streaming to Railway backend, stop ECG graph immediately
     if (!document.hidden && isReceivingSignal && Date.now() - lastSignalTime > 2000) {
-      isReceivingSignal = false;
-      samples.fill(0);
-      setConnectionState('offline');
-      if (ecgState) ecgState.textContent = 'Device offline';
-      updateBpmDisplay(0);
+      goOffline();
     }
+
+    // Pause freezes a live trace only; an offline device is always blanked
+    if (isPaused && isReceivingSignal) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -1946,6 +2016,9 @@ export function initCloudEcgMonitor(userId) {
       ctx.lineTo(width, y);
     }
     ctx.stroke();
+
+    // No device data: grid only, no trace
+    if (!isReceivingSignal) return;
 
     // 3. Draw Green ECG Waveform #00ff88
     ctx.save();
@@ -2019,11 +2092,15 @@ export function initCloudEcgMonitor(userId) {
     ctx.stroke();
     ctx.restore();
 
-    // 4. Sweep line / Cursor indicator at leading edge (active only when actively receiving signal)
-    if (isReceivingSignal) {
-      const cursorX = width - 4;
-      ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
-      ctx.fillRect(cursorX, 0, 2, height);
+    // 4. Sweep line / Cursor indicator at leading edge
+    ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
+    ctx.fillRect(width - 4, 0, 2, height);
+
+    // 5. Simulated traces are always labelled on the graph itself
+    if (displayMode === 'demo') {
+      ctx.fillStyle = '#ffa726';
+      ctx.font = 'bold 16px monospace';
+      ctx.fillText('SIMULATED · not sensor data', 12, 22);
     }
   }
 

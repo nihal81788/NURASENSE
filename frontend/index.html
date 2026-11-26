@@ -977,7 +977,7 @@
       </div>
 
       <div class="app-top__right">
-        <span class="stream-pill"><span class="live-dot"></span>Streaming · lead I</span>
+        <span class="stream-pill"><span class="live-dot offline" id="streamPillDot"></span><span id="streamPillText">Device offline</span></span>
 
         <div class="app-pop-wrap">
           <button class="icon-btn" id="dashBell" type="button" aria-label="Notifications, 1 unread" aria-expanded="false" aria-controls="dashNotif">
@@ -1051,7 +1051,7 @@
             <header class="db-head">
               <div>
                 <h2 class="db-title" id="liveTitle">Live ECG</h2>
-                <p class="db-sub">Lead I · streaming from your sensor</p>
+                <p class="db-sub" id="liveEcgSub">Lead I · streaming from your sensor</p>
               </div>
               <button class="mini-btn" id="ecgPause" type="button" aria-pressed="false">
                 <svg class="od-icon js-pause-icon" style="--od-icon-size:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
@@ -1066,11 +1066,12 @@
 
             <div class="ecg-monitor" id="ecgMonitor">
               <div class="ecg-bar">
-                <span class="ecg-bar__live"><span class="live-dot" id="ecgLiveDot"></span><span id="ecgState">Waiting for signal...</span></span>
+                <span class="ecg-bar__live"><span class="live-dot offline" id="ecgLiveDot"></span><span id="ecgState">Device offline</span></span>
                 <span class="ecg-specs" id="ecgSpecsLabel">250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass</span>
                 <div class="ecg-mode-toggle" style="margin-left: auto; display: flex; gap: 6px;">
                   <button type="button" class="mini-btn is-active" id="btnModeFiltered" style="font-size: 11px; padding: 3px 8px;">Filtered</button>
                   <button type="button" class="mini-btn" id="btnModeRaw" style="font-size: 11px; padding: 3px 8px;">Raw ADC</button>
+                  <button type="button" class="mini-btn" id="btnModeDemo" style="font-size: 11px; padding: 3px 8px;">Demo</button>
                 </div>
                 <button type="button" class="mini-btn js-open-pair-device" style="margin-left: 8px;">+ Pair ESP32</button>
               </div>
@@ -1080,8 +1081,13 @@
             <div class="ecg-readouts">
               <div class="ecg-metric ecg-metric--primary">
                 <span class="ecg-metric__label">Hardware Link</span>
-                <span class="ecg-metric__value" id="liveEcgLinkStatus" style="font-size: 20px;">Offline</span>
+                <span class="ecg-metric__value" id="liveEcgLinkStatus" style="font-size: 20px;">Device offline</span>
                 <span class="ecg-metric__note" id="liveEcgDeviceName">ESP32 Cloud Ingest</span>
+              </div>
+              <div class="ecg-metric">
+                <span class="ecg-metric__label">Heart Rate</span>
+                <span class="ecg-metric__value" id="liveEcgBpm">-- <span class="ecg-metric__unit">bpm</span></span>
+                <span class="ecg-metric__note" id="liveEcgStatus">Device offline</span>
               </div>
               <div class="ecg-metric">
                 <span class="ecg-metric__label">Sampling Rate</span>
