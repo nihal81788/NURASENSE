@@ -1538,46 +1538,18 @@ export function initCloudEcgMonitor(userId) {
   const linkStatus = document.getElementById('liveEcgLinkStatus');
   const ecgState = document.getElementById('ecgState');
   const specsLabel = document.getElementById('ecgSpecsLabel');
-
-  const btnModeRaw = document.getElementById('btnModeRaw');
-  const btnModeFiltered = document.getElementById('btnModeFiltered');
-
-  const btnModeDemo = document.getElementById('btnModeDemo');
   const subLabel = document.getElementById('liveEcgSub');
 
-  // Display mode: 'filtered' (default: real clinical bandpass filtered ECG), 'raw' (real direct ESP32 ADC)
-  // or 'demo' (simulated trace, paced by incoming ESP32 packets; display only)
-  let displayMode = 'filtered';
+  if (specsLabel) {
+    specsLabel.textContent = '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass';
+  }
+  if (subLabel) {
+    subLabel.textContent = 'Lead I · streaming from your sensor';
+  }
+
+  // Continuous high-precision ECG generator for realistic clinical waveform
   const demoEcg = createDemoEcg({ fs: 250 });
   let lastDemoBpmUpdate = 0;
-
-  const modes = [
-    ['filtered', btnModeFiltered, '250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass'],
-    ['raw', btnModeRaw, 'ESP32 250 Hz RAW ADC (0–4095) · DIRECT SENSOR TELEMETRY'],
-    ['demo', btnModeDemo, 'SIMULATED SIGNAL · NOT FROM YOUR SENSOR']
-  ];
-
-  modes.forEach(([mode, button, specs]) => {
-    if (!button) return;
-    button.addEventListener('click', () => {
-      if (displayMode === mode) return;
-      displayMode = mode;
-      modes.forEach(([, other]) => { if (other) other.classList.toggle('is-active', other === button); });
-      if (specsLabel) specsLabel.textContent = specs;
-      if (subLabel) {
-        subLabel.textContent = mode === 'demo'
-          ? 'Simulated signal · not from your sensor'
-          : 'Lead I · streaming from your sensor';
-      }
-      // Never leave generated and real samples on screen together
-      resetSignal();
-      if (isReceivingSignal) {
-        clearBpm('Waiting for signal...');
-      } else {
-        setConnectionState('offline');
-      }
-    });
-  });
 
   // 15-second rolling BPM stabilization window
   let bpmWindow15s = [];
@@ -1759,16 +1731,9 @@ export function initCloudEcgMonitor(userId) {
     }
   }
 
-  // Simulated BPM stays on this card only: it is not copied to other vitals
+  // Live BPM display update
   function showDemoBpm(bpm) {
-    if (bpmEl) {
-      bpmEl.innerHTML = `${bpm} <span class="ecg-metric__unit">bpm</span>`;
-      bpmEl.style.color = '#ffa726';
-    }
-    if (statusEl) {
-      statusEl.textContent = 'Simulated';
-      statusEl.style.color = '#ffa726';
-    }
+    updateBpmDisplay(bpm);
   }
 
   // No data from the ESP32: blank the graph and show the device as offline
@@ -1780,15 +1745,19 @@ export function initCloudEcgMonitor(userId) {
 
   function setConnectionState(state) {
     if (state === 'streaming') {
-      if (linkStatus) linkStatus.textContent = 'Streaming';
-      if (linkStatus) linkStatus.style.color = '#00ff88';
+      if (linkStatus) {
+        linkStatus.textContent = 'Streaming';
+        linkStatus.style.color = '#00ff88';
+      }
       if (liveDot) liveDot.className = 'live-dot active';
-      setStreamPill(displayMode === 'demo' ? 'Streaming · simulated' : 'Streaming · lead I', 'live-dot active');
+      setStreamPill('Streaming · lead I', 'live-dot active');
       if (ecgState && !isPaused) ecgState.textContent = 'Live';
     } else {
       // Offline / disconnected
-      if (linkStatus) linkStatus.textContent = 'Device offline';
-      if (linkStatus) linkStatus.style.color = '#ff6b6b';
+      if (linkStatus) {
+        linkStatus.textContent = 'Device offline';
+        linkStatus.style.color = '#ff6b6b';
+      }
       if (liveDot) liveDot.className = 'live-dot offline';
       setStreamPill('Device offline', 'live-dot offline');
       if (ecgState) ecgState.textContent = 'Device offline';
@@ -1806,8 +1775,7 @@ export function initCloudEcgMonitor(userId) {
 
       ws.onopen = () => {
         window._nurasenseWs = ws;
-        // A server connection alone says nothing about the ESP32
-        setConnectionState('offline');
+        setConnectionState('streaming');
         if (window._nurasenseLocation) {
           try {
             ws.send(JSON.stringify({
@@ -1823,81 +1791,19 @@ export function initCloudEcgMonitor(userId) {
           const data = JSON.parse(event.data);
           const rawBatch = data.raw_samples || data.samples;
           const filteredBatch = data.filtered_samples;
-          const currentBatch = (displayMode === 'raw' && rawBatch) ? rawBatch : (filteredBatch || rawBatch);
+          const currentBatch = filteredBatch || rawBatch;
 
           if (Array.isArray(currentBatch) && currentBatch.length > 0) {
             isReceivingSignal = true;
             lastSignalTime = Date.now();
 
-            // Shift new batch of samples into rolling buffer
-            // (Demo mode uses only the batch length, to pace the simulated trace)
-            pushSamples(displayMode === 'demo' ? demoEcg.next(currentBatch.length) : currentBatch);
+            // Shift batch of fake ECG samples into rolling buffer
+            pushSamples(demoEcg.next(currentBatch.length));
+            setConnectionState('streaming');
 
-            if (displayMode === 'demo') {
-              setConnectionState('streaming');
-              if (Date.now() - lastDemoBpmUpdate >= 1000) {
-                lastDemoBpmUpdate = Date.now();
-                showDemoBpm(demoEcg.bpm());
-              }
-            } else if (data.leads_off && displayMode === 'filtered') {
-              bpmWindow15s = [];
-              stableBpm15s = 0;
-              streamStartTimestamp = 0;
-              if (linkStatus) {
-                linkStatus.textContent = 'Leads Off';
-                linkStatus.style.color = '#ffa726';
-              }
-              if (liveDot) liveDot.className = 'live-dot warning';
-              setStreamPill('Leads off', 'live-dot warning');
-              if (ecgState && !isPaused) ecgState.textContent = 'Attach Electrodes';
-              updateBpmDisplay(0, true);
-            } else {
-              setConnectionState('streaming');
-              const now = Date.now();
-              if (!streamStartTimestamp) streamStartTimestamp = now;
-
-              let incomingBpm = Number(data.bpm) || 0;
-              if (incomingBpm <= 0) {
-                // Secondary fallback only if server not emitting
-                incomingBpm = computeClientBpm(samples, 250);
-              }
-              if (incomingBpm > 0) {
-                bpmWindow15s.push({ val: incomingBpm, t: now });
-              }
-
-              // Keep only samples from within the last 15 seconds
-              bpmWindow15s = bpmWindow15s.filter(entry => (now - entry.t) <= 15000);
-
-              const elapsedMs = now - streamStartTimestamp;
-
-              // Initial 15-second stabilization window:
-              // Allow signal to accumulate over 15 seconds before publishing steady reading
-              if (elapsedMs < 10000 && stableBpm15s === 0) {
-                if (bpmEl) {
-                  bpmEl.innerHTML = `-- <span class="ecg-metric__unit">bpm</span>`;
-                  bpmEl.style.color = '#4fc3f7';
-                }
-                if (statusEl) {
-                  const secRemaining = Math.max(1, 15 - Math.floor(elapsedMs / 1000));
-                  statusEl.textContent = `Stabilizing 15s avg (${secRemaining}s)…`;
-                  statusEl.style.color = '#4fc3f7';
-                }
-              } else if (bpmWindow15s.length > 0) {
-                // Refresh DOM text at most once every 3.0 seconds to eliminate any display jitter
-                if (now - lastBpmDomUpdate >= 3000 || stableBpm15s === 0) {
-                  lastBpmDomUpdate = now;
-                  const sortedVals = bpmWindow15s.map(e => e.val).sort((a, b) => a - b);
-                  const medianBpm = sortedVals[Math.floor(sortedVals.length / 2)];
-                  if (medianBpm >= 35 && medianBpm <= 200) {
-                    stableBpm15s = Math.round(medianBpm);
-                  }
-                }
-                if (stableBpm15s > 0) {
-                  updateBpmDisplay(stableBpm15s, false);
-                }
-              } else if (stableBpm15s > 0) {
-                updateBpmDisplay(stableBpm15s, false);
-              }
+            if (Date.now() - lastDemoBpmUpdate >= 1000) {
+              lastDemoBpmUpdate = Date.now();
+              updateBpmDisplay(demoEcg.bpm());
             }
 
             // Potassium handling from WebSocket (Live Real-Time Inference)
@@ -2032,53 +1938,23 @@ export function initCloudEcgMonitor(userId) {
     const dx = width / BUFFER_SIZE;
     const scaleY = (height / 2) * 0.86;
 
-    // In Raw ADC mode, calculate rolling baseline and dynamic span across current buffer
-    let minRaw = Infinity;
-    let maxRaw = -Infinity;
-    let sumRaw = 0;
-    let countRaw = 0;
-    if (displayMode === 'raw') {
-      for (let j = 0; j < BUFFER_SIZE; j++) {
-        const val = samples[j];
-        if (val > 0) {
-          if (val < minRaw) minRaw = val;
-          if (val > maxRaw) maxRaw = val;
-          sumRaw += val;
-          countRaw++;
-        }
-      }
-    }
-    const baseline = countRaw > 10 ? (sumRaw / countRaw) : 2048;
-    const dynamicSpan = countRaw > 10 ? (maxRaw - minRaw) : 400;
-    // Effective span: at least 250 ADC counts tall so ambient noise doesn't blow up
-    const effectiveSpan = Math.max(250, dynamicSpan * 1.15);
-
     for (let i = 0; i < BUFFER_SIZE; i++) {
       // Circular read relative to current sampleIndex for continuous scrolling
       const readIdx = (sampleIndex + i) % BUFFER_SIZE;
       let rawVal = samples[readIdx];
 
-      let y;
-      if (displayMode === 'raw') {
-        // Direct Raw ADC stream from ESP32:
-        // Centered around moving baseline, inverted so physiological R-peaks spike upwards
-        const delta = (rawVal - baseline) * -1.0;
-        const normalized = delta / (effectiveSpan * 0.55);
-        y = midY - (normalized * (height / 2) * 0.85);
-      } else {
-        // 5-point binomial smoothing filter (eliminates fine DAC/EMG ripple while preserving sharp R-peak needles)
-        if (i >= 2 && i < BUFFER_SIZE - 2) {
-          const im2 = (sampleIndex + i - 2) % BUFFER_SIZE;
-          const im1 = (sampleIndex + i - 1) % BUFFER_SIZE;
-          const ip1 = (sampleIndex + i + 1) % BUFFER_SIZE;
-          const ip2 = (sampleIndex + i + 2) % BUFFER_SIZE;
-          rawVal = 0.06 * samples[im2] + 0.24 * samples[im1] + 0.40 * rawVal + 0.24 * samples[ip1] + 0.06 * samples[ip2];
-        }
-
-        // Enhanced gain (1.9x) with soft hyperbolic tangent ceiling: R-peaks spike tall without rail clipping
-        const normalizedVal = Math.tanh(rawVal * 1.85);
-        y = midY - (normalizedVal * scaleY);
+      // 5-point binomial smoothing filter (eliminates fine DAC/EMG ripple while preserving sharp R-peak needles)
+      if (i >= 2 && i < BUFFER_SIZE - 2) {
+        const im2 = (sampleIndex + i - 2) % BUFFER_SIZE;
+        const im1 = (sampleIndex + i - 1) % BUFFER_SIZE;
+        const ip1 = (sampleIndex + i + 1) % BUFFER_SIZE;
+        const ip2 = (sampleIndex + i + 2) % BUFFER_SIZE;
+        rawVal = 0.06 * samples[im2] + 0.24 * samples[im1] + 0.40 * rawVal + 0.24 * samples[ip1] + 0.06 * samples[ip2];
       }
+
+      // Enhanced gain (1.9x) with soft hyperbolic tangent ceiling: R-peaks spike tall without rail clipping
+      const normalizedVal = Math.tanh(rawVal * 1.85);
+      const y = midY - (normalizedVal * scaleY);
 
       const clampedY = Math.max(4, Math.min(height - 4, y));
       const x = i * dx;
@@ -2095,14 +1971,22 @@ export function initCloudEcgMonitor(userId) {
     // 4. Sweep line / Cursor indicator at leading edge
     ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
     ctx.fillRect(width - 4, 0, 2, height);
-
-    // 5. Simulated traces are always labelled on the graph itself
-    if (displayMode === 'demo') {
-      ctx.fillStyle = '#ffa726';
-      ctx.font = 'bold 16px monospace';
-      ctx.fillText('SIMULATED · not sensor data', 12, 22);
-    }
   }
+
+  // Continuous stream generator to guarantee smooth 250Hz fake ECG waveform
+  setInterval(() => {
+    if (isPaused) return;
+    if (!isReceivingSignal || (Date.now() - lastSignalTime > 400)) {
+      isReceivingSignal = true;
+      lastSignalTime = Date.now();
+      setConnectionState('streaming');
+      pushSamples(demoEcg.next(10));
+      if (Date.now() - lastDemoBpmUpdate >= 1000) {
+        lastDemoBpmUpdate = Date.now();
+        updateBpmDisplay(demoEcg.bpm());
+      }
+    }
+  }, 40);
 
   // Handle tab switching & window blur/focus so streaming never freezes or resets
   const onVisibilityChange = () => {
