@@ -1066,7 +1066,7 @@
 
             <div class="ecg-monitor" id="ecgMonitor">
               <div class="ecg-bar">
-                <span class="ecg-bar__live"><span class="live-dot active" id="ecgLiveDot"></span><span id="ecgState">Live</span></span>
+                <span class="ecg-bar__live"><span class="live-dot offline" id="ecgLiveDot"></span><span id="ecgState">Device offline</span></span>
                 <span class="ecg-specs" id="ecgSpecsLabel">250 Hz Lead I · 50Hz Notch (Q=10) · 0.5–35Hz Clinical Bandpass</span>
                 <button type="button" class="mini-btn js-open-pair-device" style="margin-left: auto;">+ Pair ESP32</button>
               </div>
@@ -1076,13 +1076,13 @@
             <div class="ecg-readouts">
               <div class="ecg-metric ecg-metric--primary">
                 <span class="ecg-metric__label">Hardware Link</span>
-                <span class="ecg-metric__value" id="liveEcgLinkStatus" style="font-size: 20px; color: #00ff88;">Streaming</span>
+                <span class="ecg-metric__value" id="liveEcgLinkStatus" style="font-size: 20px; color: #ff6b6b;">Device offline</span>
                 <span class="ecg-metric__note" id="liveEcgDeviceName">ESP32 Cloud Ingest</span>
               </div>
               <div class="ecg-metric">
                 <span class="ecg-metric__label">Heart Rate</span>
-                <span class="ecg-metric__value" id="liveEcgBpm" style="color: #00ff88;">84 <span class="ecg-metric__unit">bpm</span></span>
-                <span class="ecg-metric__note" id="liveEcgStatus" style="color: #00ff88;">15s Avg · Normal ✓</span>
+                <span class="ecg-metric__value" id="liveEcgBpm">-- <span class="ecg-metric__unit">bpm</span></span>
+                <span class="ecg-metric__note" id="liveEcgStatus">Device offline</span>
               </div>
               <div class="ecg-metric">
                 <span class="ecg-metric__label">Sampling Rate</span>

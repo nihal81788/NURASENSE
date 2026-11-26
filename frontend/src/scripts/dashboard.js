@@ -1746,7 +1746,7 @@ export function initCloudEcgMonitor(userId) {
   function setConnectionState(state) {
     if (state === 'streaming') {
       if (linkStatus) {
-        linkStatus.textContent = 'Streaming';
+        linkStatus.textContent = 'Device online';
         linkStatus.style.color = '#00ff88';
       }
       if (liveDot) liveDot.className = 'live-dot active';
@@ -1775,7 +1775,7 @@ export function initCloudEcgMonitor(userId) {
 
       ws.onopen = () => {
         window._nurasenseWs = ws;
-        setConnectionState('streaming');
+        setConnectionState('offline');
         if (window._nurasenseLocation) {
           try {
             ws.send(JSON.stringify({
@@ -1972,21 +1972,6 @@ export function initCloudEcgMonitor(userId) {
     ctx.fillStyle = 'rgba(0, 255, 136, 0.8)';
     ctx.fillRect(width - 4, 0, 2, height);
   }
-
-  // Continuous stream generator to guarantee smooth 250Hz fake ECG waveform
-  setInterval(() => {
-    if (isPaused) return;
-    if (!isReceivingSignal || (Date.now() - lastSignalTime > 400)) {
-      isReceivingSignal = true;
-      lastSignalTime = Date.now();
-      setConnectionState('streaming');
-      pushSamples(demoEcg.next(10));
-      if (Date.now() - lastDemoBpmUpdate >= 1000) {
-        lastDemoBpmUpdate = Date.now();
-        updateBpmDisplay(demoEcg.bpm());
-      }
-    }
-  }, 40);
 
   // Handle tab switching & window blur/focus so streaming never freezes or resets
   const onVisibilityChange = () => {
